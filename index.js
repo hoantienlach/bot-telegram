@@ -126,7 +126,7 @@ bot.on('callback_query', async (query) => {
       `📞 **HỖ TRỢ KHÁCH HÀNG**\n\n` +
       `👤 ID Telegram của bạn: \`${userId}\`\n` +
       `💬 Liên hệ trực tiếp Admin để nạp tiền hoặc giải đáp thắc mắc:\n` +
-      `👉 Admin: Nhắn qua tài khoản ID: \`5426720868\``,
+      `👉 Admin: Nhắn qua tài khoản ID: \`https://t.me/phanhe\``,
       { parse_mode: 'Markdown' }
     );
   }
@@ -146,7 +146,7 @@ bot.on('callback_query', async (query) => {
 
     try {
       // Gọi API lấy số từ gmailotp.site
-      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=${API_KEY}&service=${serviceCode}`);
+      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=$6565dd2cdb5945cea58563c10af9ca6e}&service=${serviceCode}`);
       const resData = apiResponse.data;
 
       if (resData && (resData.status === true || resData.success === true)) {
@@ -194,7 +194,7 @@ bot.on('callback_query', async (query) => {
       }
     } catch (err) {
       console.error('Lỗi API lấy số:', err);
-      bot.sendMessage(chatId, `❌ Lỗi kết nối API lấy số từ gmailotp.site.`);
+      bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc hết số vui lòng thử lại sau.`);
     }
   }
 });
