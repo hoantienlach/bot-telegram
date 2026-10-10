@@ -43,6 +43,19 @@ const bot = new TelegramBot(token, { polling: true });
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 const ADMIN_ID = '5426720868'; 
 
+// --- ĐĂNG KÝ MENU LỆNH HIỂN THỊ KHI GÕ DẤU / ---
+bot.setMyCommands([
+  { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
+  { command: 'nap', description: 'Admin: Nạp tiền (/nap ID Số_tiền)' },
+  { command: 'check', description: 'Admin: Kiểm tra số dư (/check ID)' },
+  { command: 'stats', description: 'Admin: Thống kê số lượng thành viên' },
+  { command: 'broadcast', description: 'Admin: Gửi thông báo toàn hệ thống' }
+]).then(() => {
+  console.log('Đã cập nhật danh sách lệnh Telegram thành công!');
+}).catch(err => {
+  console.error('Lỗi thiết lập danh sách lệnh:', err.message);
+});
+
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
@@ -125,7 +138,6 @@ bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
 
   const newBalance = db[targetUserId].balance.toLocaleString();
 
-  // Báo kết quả cho Admin
   bot.sendMessage(
     chatId,
     `✅ **NẠP TIỀN THÀNH CÔNG!**\n\n` +
@@ -135,7 +147,6 @@ bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
     { parse_mode: 'Markdown' }
   );
 
-  // Gửi thông báo cho khách hàng
   bot.sendMessage(
     targetUserId,
     `🎉 **NẠP TIỀN THÀNH CÔNG!**\n\n` +
