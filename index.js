@@ -41,7 +41,8 @@ const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqd
 const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
-const ADMIN_ID = '546720868'; // ID Telegram của Admin
+// Đã cập nhật đúng ID Telegram thực tế của bạn
+const ADMIN_ID = '5426720868'; 
 
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
@@ -64,10 +65,16 @@ bot.onText(/\/start/, (msg) => {
   }
 
   const userBalance = db[userId].balance.toLocaleString();
+  const totalUsers = Object.keys(db).length;
 
-  const menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
-                   `👤 ID của bạn: \`${userId}\`\n` +
-                   `💰 Số dư ví: ${userBalance}đ`;
+  let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
+                 `👤 ID của bạn: \`${userId}\`\n` +
+                 `💰 Số dư ví: ${userBalance}đ`;
+
+  // Hiển thị thêm số người dùng nếu tài khoản thực hiện là Admin
+  if (userId === ADMIN_ID) {
+    menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
+  }
 
   bot.sendMessage(chatId, menuText, {
     parse_mode: 'Markdown',
@@ -94,7 +101,7 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// LỆNH ADMIN: Thống kê tổng số người dùng đã sử dụng (/stats)
+// LỆNH ADMIN: Thống kê số lượng người dùng (/stats)
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -109,12 +116,12 @@ bot.onText(/\/stats/, (msg) => {
   bot.sendMessage(
     chatId,
     `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
-    `👥 Tổng số người dùng đã sử dụng bot: **${totalUsers}** thành viên`,
+    `👥 Tổng số người dùng trong cơ sở dữ liệu: **${totalUsers}** người`,
     { parse_mode: 'Markdown' }
   );
 });
 
-// LỆNH ADMIN: Gửi thông báo toàn bộ người dùng (/broadcast [nội dung])
+// LỆNH ADMIN: Gửi thông báo hàng loạt (/broadcast [nội dung])
 bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -145,7 +152,7 @@ bot.onText(/\/broadcast (.+)/, async (msg, match) => {
   bot.sendMessage(chatId, `✅ **GỬI THÔNG BÁO HOÀN TẤT!**\n- Thành công: ${successCount}\n- Thất bại: ${failCount}`);
 });
 
-// LỆNH ADMIN: Kiểm tra số dư người dùng theo ID (/check [ID_Telegram])
+// LỆNH ADMIN: Kiểm tra số dư người dùng (/check [ID_Telegram])
 bot.onText(/\/check (\d+)/, async (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -235,7 +242,7 @@ bot.on('callback_query', async (query) => {
 
         let isCompleted = false;
 
-        // Vòng lặp tự động check OTP mỗi 5 giây
+        // Tự động kiểm tra OTP mỗi 5 giây
         const checkInterval = setInterval(async () => {
           if (isCompleted) return;
 
@@ -261,7 +268,7 @@ bot.on('callback_query', async (query) => {
           }
         }, 5000);
 
-        // Hết 5 phút tự động hủy số trên web và hoàn tiền
+        // Bộ đếm 5 phút tự động hủy số trên web và hoàn tiền
         const timeoutRefund = setTimeout(async () => {
           if (isCompleted) return;
           isCompleted = true;
