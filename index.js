@@ -1,3 +1,14 @@
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Bot Telegram đang chạy 24/7!');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server HTTP đang nghe tại port ${PORT}`);
+});
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
@@ -151,28 +162,38 @@ const sId = SERVICE_IDS[action];
         const phoneNum = res.data.phone || res.data.number || 'Không xác định';
         const reqId = res.data.request_id || res.data.id || 'N/A';
 
-        bot.sendMessage(query.message.chat.id, 
-          `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
-          `📞 Số điện thoại: \`${phoneNum}\`\n` +
-          `🆔 Mã đơn: \`${reqId}\`\n\n` +
-          `💰 Số dư còn lại: ${db[id].balance.toLocaleString()}đ\n\n` +
-          `👇 *Sau khi nhập số trên app, bấm nút bên dưới để lấy mã OTP:*`, 
-          { 
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}_${action}` }]
-              ]
-            }
-          }
-        );
-      } else {
-        bot.sendMessage(query.message.chat.id, `❌ Hệ thống báo: ${JSON.stringify(res.data)}`);
+       bot.sendMessage(
+      query.message.chat.id,
+      `✅ **THUÊ SỐ THÀNH CÔNG**\n\n` +
+      `📞 Số điện thoại: \`${phoneNum}\`\n` +
+      `🆔 Mã đơn: \`${reqId}\`\n` +
+      `💰 Số dư còn lại: ${db[id].balance.toLocaleString()}đ\n\n` +
+      `*Sau khi nhập số trên app, bấm nút bên dưới để lấy mã OTP:*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}_${action}` }]
+          ]
+        }
       }
-    } catch (err) {
-      bot.sendMessage(query.message.chat.id, `❌ Lỗi kết nối API lấy số.`);
-    }
+    );
+  } else {
+    bot.sendMessage(query.message.chat.id, `❌ Hệ thống báo: ${JSON.stringify(res.data)}`);
   }
+} catch (err) {
+  bot.sendMessage(query.message.chat.id, `❌ Lỗi kết nối API lấy số.`);
+}
 });
+
+// --- BỘ ĐẾM 10 PHÚT TỰ ĐỘNG HOÀN TIỀN NẾU HẾT GIỜ ---
+setTimeout(async () => {
+  let db = loadUsers(); 
+  if (db[id]) {
+    // db[id].balance += số_tiền_thuê;
+    // saveUsers(db);
+    // bot.sendMessage(chatId, `⏰ Đã hết 10 phút! Đơn #${reqId} đã tự động hủy và hoàn tiền.`);
+  }
+}, 10 * 60 * 1000);
 
 console.log('Bot đang chạy...');
