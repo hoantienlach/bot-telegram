@@ -42,7 +42,6 @@ const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 
-// Bảng cấu hình ID dịch vụ chuẩn
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
@@ -121,30 +120,6 @@ bot.on('callback_query', async (query) => {
     );
   }
 
-  // Lấy OTP
-  if (action.startsWith('check_otp_')) {
-    const parts = action.split('_');
-    const reqId = parts[2];
-
-    try {
-      const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
-      const otpData = otpRes.data;
-
-      if (otpData && otpData.success === true) {
-        if (otpData.otp_code && otpData.otp_code !== 'is_coming') {
-          return bot.sendMessage(chatId, `📩 **MÃ OTP CỦA BẠN:** \`${otpData.otp_code}\``, { parse_mode: 'Markdown' });
-        } else {
-          return bot.sendMessage(chatId, `⏳ Đang chờ mã OTP, vui lòng bấm lại sau ít giây...`);
-        }
-      } else {
-        return bot.sendMessage(chatId, `❌ Chưa nhận được mã hoặc đơn hàng đã hết hạn.`);
-      }
-    } catch (err) {
-      return bot.sendMessage(chatId, `❌ Lỗi kết nối kiểm tra OTP.`);
-    }
-  }
-
-  // Thuê số
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
@@ -161,8 +136,6 @@ bot.on('callback_query', async (query) => {
       const apiResponse = await axios.get(apiUrl);
       const resData = apiResponse.data;
 
-      console.log('API Response:', resData);
-
       if (resData && resData.success === true) {
         const phoneNum = resData.number || 'Không xác định';
         const reqId = resData.request_id || 'N/A';
@@ -176,21 +149,45 @@ bot.on('callback_query', async (query) => {
           `📞 Số điện thoại: \`${phoneNum}\`\n` +
           `🆔 Mã đơn: \`${reqId}\`\n` +
           `💰 Số dư còn lại: ${db[userId].balance.toLocaleString()}đ\n\n` +
-          `*Sau khi nhập số trên app, bấm nút bên dưới để lấy mã OTP:*`,
-          {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}` }]
-              ]
-            }
-          }
+          `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
+          { parse_mode: 'Markdown' }
         );
 
-        // --- BỘ ĐẾM 5 PHÚT: TỰ ĐỘNG GỌI HỦY SỐ TRÊN WEB & HOÀN TIỀN ---
-        setTimeout(async () => {
+        let isCompleted = false;
+
+        // Vòng lặp tự động check OTP mỗi 5 giây trong nền
+        const checkInterval = setInterval(async () => {
+          if (isCompleted) return;
+
           try {
-            // Gọi API hủy số chính thức lên gmailotp.site
+            const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
+            const otpData = otpRes.data;
+
+            if (otpData && otpData.success === true && otpData.otp_code && otpData.otp_code !== 'is_coming') {
+              isCompleted = true;
+              clearInterval(checkInterval);
+              clearTimeout(timeoutRefund);
+
+              bot.sendMessage(
+                chatId,
+                `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
+                `📞 Số điện thoại: \`${phoneNum}\`\n` +
+                `📩 **MÃ OTP:** \`${otpData.otp_code}\``,
+                { parse_mode: 'Markdown' }
+              );
+            }
+          } catch (e) {
+            console.error('Lỗi check OTP nền:', e.message);
+          }
+        }, 5000);
+
+        // Bộ đếm 5 phút tự động hủy số và hoàn tiền nếu không có OTP
+        const timeoutRefund = setTimeout(async () => {
+          if (isCompleted) return;
+          isCompleted = true;
+          clearInterval(checkInterval);
+
+          try {
             await axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY}&id=${reqId}`);
           } catch (e) {
             console.error('Lỗi gọi API hủy số:', e.message);
@@ -203,7 +200,7 @@ bot.on('callback_query', async (query) => {
 
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy số trên web và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
+              `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` không nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
               { parse_mode: 'Markdown' }
             ).catch(e => console.error(e));
           }
