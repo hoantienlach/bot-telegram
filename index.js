@@ -41,6 +41,7 @@ const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqd
 const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
+const ADMIN_ID = '546720868'; // ID Telegram của Admin
 
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
@@ -51,6 +52,7 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: '26145' }
 };
 
+// Lệnh /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -90,6 +92,84 @@ bot.onText(/\/start/, (msg) => {
       ]
     }
   });
+});
+
+// LỆNH ADMIN: Thống kê tổng số người dùng đã sử dụng (/stats)
+bot.onText(/\/stats/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  if (userId !== ADMIN_ID) {
+    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+  }
+
+  let db = loadUsers();
+  const totalUsers = Object.keys(db).length;
+
+  bot.sendMessage(
+    chatId,
+    `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
+    `👥 Tổng số người dùng đã sử dụng bot: **${totalUsers}** thành viên`,
+    { parse_mode: 'Markdown' }
+  );
+});
+
+// LỆNH ADMIN: Gửi thông báo toàn bộ người dùng (/broadcast [nội dung])
+bot.onText(/\/broadcast (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  if (userId !== ADMIN_ID) {
+    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+  }
+
+  const broadcastMessage = match[1];
+  let db = loadUsers();
+  const userIds = Object.keys(db);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  bot.sendMessage(chatId, `📢 Đang gửi thông báo đến ${userIds.length} người dùng, vui lòng đợi...`);
+
+  for (const id of userIds) {
+    try {
+      await bot.sendMessage(id, `🔔 **THÔNG BÁO TỪ HỆ THỐNG**\n\n${broadcastMessage}`, { parse_mode: 'Markdown' });
+      successCount++;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } catch (err) {
+      failCount++;
+    }
+  }
+
+  bot.sendMessage(chatId, `✅ **GỬI THÔNG BÁO HOÀN TẤT!**\n- Thành công: ${successCount}\n- Thất bại: ${failCount}`);
+});
+
+// LỆNH ADMIN: Kiểm tra số dư người dùng theo ID (/check [ID_Telegram])
+bot.onText(/\/check (\d+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  if (userId !== ADMIN_ID) {
+    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+  }
+
+  const targetUserId = match[1];
+  let db = loadUsers();
+
+  if (!db[targetUserId]) {
+    return bot.sendMessage(chatId, `❌ Không tìm thấy thông tin của người dùng có ID: \`${targetUserId}\`.`);
+  }
+
+  const userBalance = db[targetUserId].balance.toLocaleString();
+
+  bot.sendMessage(
+    chatId,
+    `🔍 **THÔNG TIN TÀI KHOẢN KHÁCH HÀNG**\n\n` +
+    `👤 ID: \`${targetUserId}\`\n` +
+    `💰 Số dư hiện tại: **${userBalance}đ**`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 bot.on('callback_query', async (query) => {
@@ -155,7 +235,7 @@ bot.on('callback_query', async (query) => {
 
         let isCompleted = false;
 
-        // Vòng lặp tự động check OTP mỗi 5 giây trong nền
+        // Vòng lặp tự động check OTP mỗi 5 giây
         const checkInterval = setInterval(async () => {
           if (isCompleted) return;
 
@@ -181,7 +261,7 @@ bot.on('callback_query', async (query) => {
           }
         }, 5000);
 
-        // Bộ đếm 5 phút tự động hủy số và hoàn tiền nếu không có OTP
+        // Hết 5 phút tự động hủy số trên web và hoàn tiền
         const timeoutRefund = setTimeout(async () => {
           if (isCompleted) return;
           isCompleted = true;
