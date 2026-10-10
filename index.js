@@ -1,8 +1,8 @@
+
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process process.env.PORT || 3000;
 
-// Khởi tạo Express Server duy trì 24/7 trên Render
 app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
@@ -41,18 +41,35 @@ function saveUsers(data) {
 const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqdHMhjmc';
 const bot = new TelegramBot(token, { polling: true });
 
-// API Key gmailotp.site của bạn
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 
-// Cấu hình dịch vụ, giá tiền và ID dịch vụ chuẩn theo tài liệu
+// Bảng cấu hình dịch vụ & từ khóa tìm kiếm trong danh sách dịch vụ của web
 const SERVICE_MAPPING = {
-  'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
-  'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
-  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: 'tiktok_us10' },
-  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: 'tiktok_us9' },
-  'rent_tt_chile': { name: 'TikTok Chile', price: 1600, service_id: 'tiktok_chile' },
-  'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: 'tiktok_colombia' }
+  'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, fixed_id: '15461', keyword: 'Shopee Viet nam 5' },
+  'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, fixed_id: '24901', keyword: 'Shopee Viet nam 8' },
+  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, keyword: 'United States' },
+  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, keyword: 'United States' },
+  'rent_tt_chile': { name: 'TikTok Chile', price: 1600, keyword: 'Chile' },
+  'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, keyword: 'Colombia' }
 };
+
+// Hàm hỗ trợ tìm ID dịch vụ từ API web
+async function getServiceId(info) {
+  if (info.fixed_id) return info.fixed_id;
+
+  try {
+    const res = await axios.get(`https://gmailotp.site/api?action=get_all_services&key=${API_KEY}`);
+    const services = res.data;
+
+    if (Array.isArray(services)) {
+      const found = services.find(s => s.name && s.name.toLowerCase().includes(info.keyword.toLowerCase()));
+      if (found) return found.id;
+    }
+  } catch (e) {
+    console.error('Lỗi khi lấy danh sách dịch vụ:', e.message);
+  }
+  return null;
+}
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -123,10 +140,10 @@ bot.on('callback_query', async (query) => {
     );
   }
 
-  // Xử lý lấy mã OTP khi người dùng bấm nút "Lấy OTP"
+  // Lấy OTP
   if (action.startsWith('check_otp_')) {
     const parts = action.split('_');
-    const reqId = parts[2]; // Lấy request_id
+    const reqId = parts[2];
 
     try {
       const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
@@ -146,21 +163,27 @@ bot.on('callback_query', async (query) => {
     }
   }
 
-  // Xử lý thuê số dịch vụ
+  // Thuê số
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
-    const serviceId = serviceInfo.service_id;
 
     if (db[userId].balance < price) {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`, { parse_mode: 'Markdown' });
     }
 
     try {
-      // Gọi API lấy số đúng chuẩn tài liệu Postman: ?action=get_number&key=...&id=...
-      const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY}&id=${serviceId}`);
+      // Tự động tìm ID số chính xác từ server web
+      const targetServiceId = await getServiceId(serviceInfo);
+
+      if (!targetServiceId) {
+        return bot.sendMessage(chatId, `❌ Tạm thời không tìm thấy ID dịch vụ này trên hệ thống. Vui lòng thử dịch vụ khác!`);
+      }
+
+      const apiUrl = `https://gmailotp.site/api?action=get_number&key=${API_KEY}&id=${targetServiceId}`;
+      const apiResponse = await axios.get(apiUrl);
       const resData = apiResponse.data;
 
       console.log('API Response:', resData);
@@ -189,7 +212,6 @@ bot.on('callback_query', async (query) => {
           }
         );
 
-        // Bộ đếm 10 phút hoàn tiền tự động nếu không nhận được OTP
         setTimeout(async () => {
           let currentDb = loadUsers();
           if (currentDb[userId]) {
@@ -205,13 +227,12 @@ bot.on('callback_query', async (query) => {
         }, 10 * 60 * 1000);
 
       } else {
-        bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc tạm thời hết số. Vui lòng thử lại sau ít phút!`);
+        const detailMsg = resData.message || resData.msg || 'Hệ thống hết số hoặc bận';
+        bot.sendMessage(chatId, `❌ **Thông báo:** ${detailMsg}`);
       }
     } catch (err) {
       console.error('Lỗi API lấy số:', err.message);
-      bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc tạm thời hết số. Vui lòng thử lại sau ít phút!`);
+      bot.sendMessage(chatId, `❌ Lỗi kết nối máy chủ, vui lòng thử lại sau!`);
     }
   }
 });
-
-console.log('Bot đang chạy...');
