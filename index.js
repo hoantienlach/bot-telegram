@@ -88,18 +88,12 @@ function sendMainMenu(chatId, userId) {
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
-        [
-          { text: '🛍️ Shopee VN 5 (5k)', callback_data: 'rent_shopee_vn5' },
-          { text: '🛍️ Shopee VN 8 (5k)', callback_data: 'rent_shopee_vn8' }
-        ],
-        [
-          { text: '🎵 TikTok US 10 (1.6k)', callback_data: 'rent_tt_us10' },
-          { text: '🎵 TikTok US 9 (1.6k)', callback_data: 'rent_tt_us9' }
-        ],
-        [
-          { text: '🎵 TikTok Chile (1.6k)', callback_data: 'rent_tt_chile' },
-          { text: '🎵 TikTok Colombia (1.6k)', callback_data: 'rent_tt_colombia' }
-        ],
+        [{ text: '🛍️ Shopee VN 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
+        [{ text: '🛍️ Shopee VN 8 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
+        [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
+        [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
+        [{ text: '🎵 TikTok Chile - 1.600đ', callback_data: 'rent_tt_chile' }],
+        [{ text: '🎵 TikTok Colombia - 1.600đ', callback_data: 'rent_tt_colombia' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -287,8 +281,12 @@ bot.on('callback_query', async (query) => {
       const resData = apiResponse.data;
 
       if (resData && resData.success === true) {
-        const phoneNum = resData.number || 'Không xác định';
+        const rawPhone = resData.number || '';
         const reqId = resData.request_id || 'N/A';
+
+        // Định dạng lại hiển thị số điện thoại (Tách tên dịch vụ / mã quốc gia ra một bên, số ra bên cạnh)
+        let displayPhone = rawPhone;
+        let countryLabel = serviceInfo.name;
 
         db[userId].balance -= price;
         saveUsers(db);
@@ -296,9 +294,10 @@ bot.on('callback_query', async (query) => {
         await bot.sendMessage(
           chatId,
           `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
-          `📞 Số điện thoại: \`${phoneNum}\`\n` +
-          `🆔 Mã đơn: \`${reqId}\`\n` +
-          `💰 Số dư còn lại: ${db[userId].balance.toLocaleString()}đ\n\n` +
+          `🌐 **Dịch vụ:** ${countryLabel}\n` +
+          `📞 **Số điện thoại:** \`${displayPhone}\`\n` +
+          `🆔 **Mã đơn:** \`${reqId}\`\n` +
+          `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
           `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
           { parse_mode: 'Markdown' }
         );
@@ -317,11 +316,11 @@ bot.on('callback_query', async (query) => {
               clearInterval(checkInterval);
               clearTimeout(timeoutRefund);
 
-              // Gửi OTP kèm nút "🔄 Thuê tiếp"
               bot.sendMessage(
                 chatId,
                 `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
-                `📞 Số điện thoại: \`${phoneNum}\`\n` +
+                `🌐 **Dịch vụ:** ${countryLabel}\n` +
+                `📞 **Số điện thoại:** \`${displayPhone}\`\n` +
                 `📩 **MÃ OTP:** \`${otpData.otp_code}\``,
                 {
                   parse_mode: 'Markdown',
