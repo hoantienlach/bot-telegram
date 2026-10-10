@@ -65,7 +65,7 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: '26145' }
 };
 
-// Hàm gửi Menu chính
+// Hàm gửi Menu chính (Tinh gọn 2 nút lớn)
 function sendMainMenu(chatId, userId) {
   let db = loadUsers();
   if (!db[userId]) {
@@ -88,12 +88,8 @@ function sendMainMenu(chatId, userId) {
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🛍️ Shopee VN 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
-        [{ text: '🛍️ Shopee VN 8 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
-        [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
-        [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
-        [{ text: '🎵 TikTok Chile - 1.600đ', callback_data: 'rent_tt_chile' }],
-        [{ text: '🎵 TikTok Colombia - 1.600đ', callback_data: 'rent_tt_colombia' }],
+        [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
+        [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -234,6 +230,7 @@ bot.onText(/\/check (\d+)/, async (msg, match) => {
 
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
+  const messageId = query.message.message_id;
   const userId = query.from.id.toString();
   const action = query.data;
 
@@ -244,6 +241,70 @@ bot.on('callback_query', async (query) => {
 
   if (action === 'rent_more') {
     return sendMainMenu(chatId, userId);
+  }
+
+  // Xử lý menu con Shopee
+  if (action === 'menu_shopee') {
+    return bot.editMessageText(`🛍️ **CHỌN MÃ VÙNG SHOPEE**`, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🛍️ Shopee VN 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
+          [{ text: '🛍️ Shopee VN 8 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
+          [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
+  // Xử lý menu con TikTok
+  if (action === 'menu_tiktok') {
+    return bot.editMessageText(`🎵 **CHỌN MÃ VÙNG TIKTOK**`, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
+          [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
+          [{ text: '🎵 TikTok Chile - 1.600đ', callback_data: 'rent_tt_chile' }],
+          [{ text: '🎵 TikTok Colombia - 1.600đ', callback_data: 'rent_tt_colombia' }],
+          [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
+  // Quay lại menu chính
+  if (action === 'back_main') {
+    const userBalance = db[userId].balance.toLocaleString();
+    const totalUsers = Object.keys(db).length;
+
+    let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
+                   `👤 ID của bạn: \`${userId}\`\n` +
+                   `💰 Số dư ví: ${userBalance}đ`;
+
+    if (userId === ADMIN_ID) {
+      menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
+    }
+
+    return bot.editMessageText(menuText, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
+          [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+          [
+            { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
+            { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+          ]
+        ]
+      }
+    });
   }
 
   if (action === 'check_balance') {
@@ -308,7 +369,6 @@ bot.on('callback_query', async (query) => {
             const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
             const otpData = otpRes.data;
 
-            // Bắt linh hoạt các trường chứa mã OTP trả về từ web
             const otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
 
             if (otpData && (otpData.success === true || otpData.status === 'success' || otpCode) && otpCode && otpCode !== 'is_coming') {
