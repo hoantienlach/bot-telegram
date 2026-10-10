@@ -1,7 +1,6 @@
-
 const express = require('express');
 const app = express();
-const PORT = process process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
@@ -175,7 +174,6 @@ bot.on('callback_query', async (query) => {
     }
 
     try {
-      // Tự động tìm ID số chính xác từ server web
       const targetServiceId = await getServiceId(serviceInfo);
 
       if (!targetServiceId) {
@@ -236,3 +234,5 @@ bot.on('callback_query', async (query) => {
     }
   }
 });
+
+console.log('Bot đang chạy...');
