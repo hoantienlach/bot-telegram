@@ -283,10 +283,7 @@ bot.on('callback_query', async (query) => {
       if (resData && resData.success === true) {
         const rawPhone = resData.number || '';
         const reqId = resData.request_id || 'N/A';
-
-        // Định dạng lại hiển thị số điện thoại (Tách tên dịch vụ / mã quốc gia ra một bên, số ra bên cạnh)
-        let displayPhone = rawPhone;
-        let countryLabel = serviceInfo.name;
+        const countryLabel = serviceInfo.name;
 
         db[userId].balance -= price;
         saveUsers(db);
@@ -295,7 +292,7 @@ bot.on('callback_query', async (query) => {
           chatId,
           `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
           `🌐 **Dịch vụ:** ${countryLabel}\n` +
-          `📞 **Số điện thoại:** \`${displayPhone}\`\n` +
+          `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
           `🆔 **Mã đơn:** \`${reqId}\`\n` +
           `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
           `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
@@ -311,7 +308,10 @@ bot.on('callback_query', async (query) => {
             const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
             const otpData = otpRes.data;
 
-            if (otpData && otpData.success === true && otpData.otp_code && otpData.otp_code !== 'is_coming') {
+            // Bắt linh hoạt các trường chứa mã OTP trả về từ web
+            const otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
+
+            if (otpData && (otpData.success === true || otpData.status === 'success' || otpCode) && otpCode && otpCode !== 'is_coming') {
               isCompleted = true;
               clearInterval(checkInterval);
               clearTimeout(timeoutRefund);
@@ -320,8 +320,8 @@ bot.on('callback_query', async (query) => {
                 chatId,
                 `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
                 `🌐 **Dịch vụ:** ${countryLabel}\n` +
-                `📞 **Số điện thoại:** \`${displayPhone}\`\n` +
-                `📩 **MÃ OTP:** \`${otpData.otp_code}\``,
+                `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
+                `📩 **MÃ OTP:** \`${otpCode}\``,
                 {
                   parse_mode: 'Markdown',
                   reply_markup: {
