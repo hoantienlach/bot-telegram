@@ -65,11 +65,8 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: '26145' }
 };
 
-// Lệnh /start
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
+// Hàm gửi Menu chính
+function sendMainMenu(chatId, userId) {
   let db = loadUsers();
   if (!db[userId]) {
     db[userId] = { balance: 12000 };
@@ -110,6 +107,13 @@ bot.onText(/\/start/, (msg) => {
       ]
     }
   });
+}
+
+// Lệnh /start
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+  sendMainMenu(chatId, userId);
 });
 
 // LỆNH ADMIN: Nạp/Cộng tiền cho người dùng (/nap [ID_Telegram] [Số_tiền])
@@ -244,6 +248,10 @@ bot.on('callback_query', async (query) => {
     db[userId] = { balance: 12000 };
   }
 
+  if (action === 'rent_more') {
+    return sendMainMenu(chatId, userId);
+  }
+
   if (action === 'check_balance') {
     return bot.answerCallbackQuery(query.id, {
       text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`,
@@ -309,12 +317,20 @@ bot.on('callback_query', async (query) => {
               clearInterval(checkInterval);
               clearTimeout(timeoutRefund);
 
+              // Gửi OTP kèm nút "🔄 Thuê tiếp"
               bot.sendMessage(
                 chatId,
                 `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
                 `📞 Số điện thoại: \`${phoneNum}\`\n` +
                 `📩 **MÃ OTP:** \`${otpData.otp_code}\``,
-                { parse_mode: 'Markdown' }
+                {
+                  parse_mode: 'Markdown',
+                  reply_markup: {
+                    inline_keyboard: [
+                      [{ text: '🔄 Thuê tiếp', callback_data: 'rent_more' }]
+                    ]
+                  }
+                }
               );
             }
           } catch (e) {
@@ -341,7 +357,14 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(
               chatId,
               `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` không nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
-              { parse_mode: 'Markdown' }
+              {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '🔄 Thuê tiếp', callback_data: 'rent_more' }]
+                  ]
+                }
+              }
             ).catch(e => console.error(e));
           }
         }, 5 * 60 * 1000);
