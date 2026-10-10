@@ -44,7 +44,7 @@ const bot = new TelegramBot(token, { polling: true });
 // API Key gmailotp.site của bạn
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 
-// Cấu hình dịch vụ, giá tiền và ID dịch vụ tương ứng
+// Cấu hình dịch vụ, giá tiền và ID dịch vụ chuẩn theo tài liệu
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
@@ -112,7 +112,6 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // Nút Hỗ trợ Admin đã chỉnh sửa link chuẩn https://t.me/phanhe
   if (action === 'support_admin') {
     return bot.sendMessage(
       chatId,
@@ -124,26 +123,51 @@ bot.on('callback_query', async (query) => {
     );
   }
 
+  // Xử lý lấy mã OTP khi người dùng bấm nút "Lấy OTP"
+  if (action.startsWith('check_otp_')) {
+    const parts = action.split('_');
+    const reqId = parts[2]; // Lấy request_id
+
+    try {
+      const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
+      const otpData = otpRes.data;
+
+      if (otpData && otpData.success === true) {
+        if (otpData.otp_code && otpData.otp_code !== 'is_coming') {
+          return bot.sendMessage(chatId, `📩 **MÃ OTP CỦA BẠN:** \`${otpData.otp_code}\``, { parse_mode: 'Markdown' });
+        } else {
+          return bot.sendMessage(chatId, `⏳ Đang chờ mã OTP, vui lòng bấm lại sau ít giây...`);
+        }
+      } else {
+        return bot.sendMessage(chatId, `❌ Chưa nhận được mã hoặc đơn hàng đã hết hạn.`);
+      }
+    } catch (err) {
+      return bot.sendMessage(chatId, `❌ Lỗi kết nối kiểm tra OTP.`);
+    }
+  }
+
+  // Xử lý thuê số dịch vụ
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
-    const serviceCode = serviceInfo.service_id;
+    const serviceId = serviceInfo.service_id;
 
     if (db[userId].balance < price) {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`, { parse_mode: 'Markdown' });
     }
 
     try {
-      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=${API_KEY}&service=${serviceCode}`);
+      // Gọi API lấy số đúng chuẩn tài liệu Postman: ?action=get_number&key=...&id=...
+      const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY}&id=${serviceId}`);
       const resData = apiResponse.data;
 
       console.log('API Response:', resData);
 
-      if (resData && (resData.status === true || resData.success === true || resData.phone)) {
-        const phoneNum = resData.phone || resData.number || 'Không xác định';
-        const reqId = resData.request_id || resData.id || 'N/A';
+      if (resData && resData.success === true) {
+        const phoneNum = resData.number || 'Không xác định';
+        const reqId = resData.request_id || 'N/A';
 
         db[userId].balance -= price;
         saveUsers(db);
@@ -159,7 +183,7 @@ bot.on('callback_query', async (query) => {
             parse_mode: 'Markdown',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}_${action}` }]
+                [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}` }]
               ]
             }
           }
