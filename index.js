@@ -41,7 +41,6 @@ const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqd
 const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
-// Đã cập nhật đúng ID Telegram thực tế của bạn
 const ADMIN_ID = '5426720868'; 
 
 const SERVICE_MAPPING = {
@@ -71,7 +70,6 @@ bot.onText(/\/start/, (msg) => {
                  `👤 ID của bạn: \`${userId}\`\n` +
                  `💰 Số dư ví: ${userBalance}đ`;
 
-  // Hiển thị thêm số người dùng nếu tài khoản thực hiện là Admin
   if (userId === ADMIN_ID) {
     menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
   }
@@ -99,6 +97,52 @@ bot.onText(/\/start/, (msg) => {
       ]
     }
   });
+});
+
+// LỆNH ADMIN: Nạp/Cộng tiền cho người dùng (/nap [ID_Telegram] [Số_tiền])
+bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  if (userId !== ADMIN_ID) {
+    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+  }
+
+  const targetUserId = match[1];
+  const amount = parseInt(match[2], 10);
+
+  if (isNaN(amount) || amount <= 0) {
+    return bot.sendMessage(chatId, `❌ Số tiền phải lớn hơn 0! Cú pháp: \`/nap [ID] [Số_tiền]\``, { parse_mode: 'Markdown' });
+  }
+
+  let db = loadUsers();
+  if (!db[targetUserId]) {
+    db[targetUserId] = { balance: 0 };
+  }
+
+  db[targetUserId].balance += amount;
+  saveUsers(db);
+
+  const newBalance = db[targetUserId].balance.toLocaleString();
+
+  // Báo kết quả cho Admin
+  bot.sendMessage(
+    chatId,
+    `✅ **NẠP TIỀN THÀNH CÔNG!**\n\n` +
+    `👤 ID người dùng: \`${targetUserId}\`\n` +
+    `💵 Số tiền cộng: **+${amount.toLocaleString()}đ**\n` +
+    `💰 Số dư mới: **${newBalance}đ**`,
+    { parse_mode: 'Markdown' }
+  );
+
+  // Gửi thông báo cho khách hàng
+  bot.sendMessage(
+    targetUserId,
+    `🎉 **NẠP TIỀN THÀNH CÔNG!**\n\n` +
+    `💵 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**\n` +
+    `💰 Số dư ví hiện tại: **${newBalance}đ**`,
+    { parse_mode: 'Markdown' }
+  ).catch(e => console.error('Không thể gửi tin nhắn cho khách:', e.message));
 });
 
 // LỆNH ADMIN: Thống kê số lượng người dùng (/stats)
@@ -242,7 +286,6 @@ bot.on('callback_query', async (query) => {
 
         let isCompleted = false;
 
-        // Tự động kiểm tra OTP mỗi 5 giây
         const checkInterval = setInterval(async () => {
           if (isCompleted) return;
 
@@ -268,7 +311,6 @@ bot.on('callback_query', async (query) => {
           }
         }, 5000);
 
-        // Bộ đếm 5 phút tự động hủy số trên web và hoàn tiền
         const timeoutRefund = setTimeout(async () => {
           if (isCompleted) return;
           isCompleted = true;
