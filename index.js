@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Khởi tạo Express Server để duy trì kết nối Live trên Render
+// 1. Khởi tạo Express Server để duy trì kết nối Live trên Render
 app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
@@ -41,30 +41,121 @@ function saveUsers(data) {
   }
 }
 
-// Cấu hình Bot Telegram (nhập BOT_TOKEN trong Environment Variables trên Render hoặc điền trực tiếp)
-const token = process.env.BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
+// Cấu hình Bot Telegram
+const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqdHMhjmc';
 const bot = new TelegramBot(token, { polling: true });
 
-// Lắng nghe sự kiện callback_query (khi người dùng bấm nút thuê số)
+// API Key gmailotp.site của bạn
+const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
+
+// Bảng ánh xạ giá tiền và ID dịch vụ trên gmailotp.site
+const SERVICE_MAPPING = {
+  'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
+  'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
+  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: 'tiktok_us10' },
+  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: 'tiktok_us9' },
+  'rent_tt_chile': { name: 'TikTok Chile', price: 1600, service_id: 'tiktok_chile' },
+  'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: 'tiktok_colombia' }
+};
+
+// Lệnh /start hiển thị menu chính
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  let db = loadUsers();
+  if (!db[userId]) {
+    db[userId] = { balance: 12000 }; // Số dư mặc định
+    saveUsers(db);
+  }
+
+  const userBalance = db[userId].balance.toLocaleString();
+
+  const menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
+                   `👤 ID của bạn: \`${userId}\`\n` +
+                   `💰 Số dư ví: ${userBalance}đ`;
+
+  bot.sendMessage(chatId, menuText, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '🛍️ Shopee VN 5 (5k)', callback_data: 'rent_shopee_vn5' },
+          { text: '🛍️ Shopee VN 8 (5k)', callback_data: 'rent_shopee_vn8' }
+        ],
+        [
+          { text: '🎵 TikTok US 10 (1.6k)', callback_data: 'rent_tt_us10' },
+          { text: '🎵 TikTok US 9 (1.6k)', callback_data: 'rent_tt_us9' }
+        ],
+        [
+          { text: '🎵 TikTok Chile (1.6k)', callback_data: 'rent_tt_chile' },
+          { text: '🎵 TikTok Colombia (1.6k)', callback_data: 'rent_tt_colombia' }
+        ],
+        [
+          { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
+          { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+        ]
+      ]
+    }
+  });
+});
+
+// Lắng nghe sự kiện bấm nút trên giao diện
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // Ví dụ xử lý sự kiện thuê số
+  let db = loadUsers();
+  if (!db[userId]) {
+    db[userId] = { balance: 12000 };
+  }
+
+  // 1. Kiểm tra số dư
+  if (action === 'check_balance') {
+    return bot.answerCallbackQuery(query.id, {
+      text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`,
+      show_alert: true
+    });
+  }
+
+  // 2. Hỗ trợ Admin
+  if (action === 'support_admin') {
+    return bot.sendMessage(
+      chatId,
+      `📞 **HỖ TRỢ KHÁCH HÀNG**\n\n` +
+      `👤 ID Telegram của bạn: \`${userId}\`\n` +
+      `💬 Liên hệ trực tiếp Admin để nạp tiền hoặc giải đáp thắc mắc:\n` +
+      `👉 Admin: Nhắn qua tài khoản ID: \`5426720868\``,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // 3. Xử lý thuê số dịch vụ
   if (action.startsWith('rent_')) {
+    const serviceInfo = SERVICE_MAPPING[action];
+    if (!serviceInfo) return;
+
+    const price = serviceInfo.price;
+    const serviceCode = serviceInfo.service_id;
+
+    // Kiểm tra số dư người dùng
+    if (db[userId].balance < price) {
+      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`);
+    }
+
     try {
-      let db = loadUsers();
-      if (!db[userId]) {
-        db[userId] = { balance: 0 };
-      }
+      // Gọi API lấy số từ gmailotp.site
+      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=${API_KEY}&service=${serviceCode}`);
+      const resData = apiResponse.data;
 
-      // Giả định dữ liệu trả về từ API thuê số
-      const res = { data: { status: true, phone: '0987654321', request_id: 'REQ123456' } };
+      if (resData && (resData.status === true || resData.success === true)) {
+        const phoneNum = resData.phone || resData.number || 'Không xác định';
+        const reqId = resData.request_id || resData.id || 'N/A';
 
-      if (res.data && res.data.status) {
-        const phoneNum = res.data.phone || res.data.number || 'Không xác định';
-        const reqId = res.data.request_id || res.data.id || 'N/A';
+        // Trừ tiền tương ứng ứng với giá dịch vụ
+        db[userId].balance -= price;
+        saveUsers(db);
 
         // Gửi thông báo thuê số thành công
         await bot.sendMessage(
@@ -76,8 +167,7 @@ bot.on('callback_query', async (query) => {
           `*Sau khi nhập số trên app, bấm nút bên dưới để lấy mã OTP:*`,
           {
             parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [
+            reply_markup: {inline_keyboard: [
                 [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}_${action}` }]
               ]
             }
@@ -85,26 +175,26 @@ bot.on('callback_query', async (query) => {
         );
 
         // --- BỘ ĐẾM 10 PHÚT TỰ ĐỘNG HOÀN TIỀN NẾU KHÔNG CÓ OTP ---
-        setTimeout(async () => {let currentDb = loadUsers();
-          // Kiểm tra xem đơn đã lấy thành công OTP chưa (nếu chưa thì thực hiện hoàn tiền)
+        setTimeout(async () => {
+          let currentDb = loadUsers();
           if (currentDb[userId]) {
-            // Ví dụ cộng lại tiền thuê vào tài khoản:
-            // currentDb[userId].balance += 1000;
-            // saveUsers(currentDb);
-            
+            // Hoàn lại chính xác số tiền đã trừ vào tài khoản
+            currentDb[userId].balance += price;
+            saveUsers(currentDb);
+
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 10 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP nên hệ thống đã tự động hủy và hoàn tiền.`
+              `⏰ **ĐÃ HẾT 10 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`
             ).catch(e => console.error(e));
           }
         }, 10 * 60 * 1000);
 
       } else {
-        bot.sendMessage(chatId, `❌ Hệ thống báo: ${JSON.stringify(res.data)}`);
+        bot.sendMessage(chatId, `❌ Hệ thống báo: ${JSON.stringify(resData)}`);
       }
     } catch (err) {
       console.error('Lỗi API lấy số:', err);
-      bot.sendMessage(chatId, `❌ Lỗi kết nối API lấy số.`);
+      bot.sendMessage(chatId, `❌ Lỗi kết nối API lấy số từ gmailotp.site.`);
     }
   }
 });
