@@ -42,7 +42,7 @@ const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 
-// Bảng cấu hình ID dịch vụ chuẩn xác theo hình ảnh thực tế trên web
+// Bảng cấu hình ID dịch vụ chuẩn
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
@@ -187,8 +187,15 @@ bot.on('callback_query', async (query) => {
           }
         );
 
-        // --- BỘ ĐẾM 5 PHÚT TỰ ĐỘNG HOÀN TIỀN NẾU KHÔNG CÓ OTP ---
+        // --- BỘ ĐẾM 5 PHÚT: TỰ ĐỘNG GỌI HỦY SỐ TRÊN WEB & HOÀN TIỀN ---
         setTimeout(async () => {
+          try {
+            // Gọi API hủy số chính thức lên gmailotp.site
+            await axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY}&id=${reqId}`);
+          } catch (e) {
+            console.error('Lỗi gọi API hủy số:', e.message);
+          }
+
           let currentDb = loadUsers();
           if (currentDb[userId]) {
             currentDb[userId].balance += price;
@@ -196,7 +203,7 @@ bot.on('callback_query', async (query) => {
 
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
+              `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy số trên web và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
               { parse_mode: 'Markdown' }
             ).catch(e => console.error(e));
           }
