@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 1. Khởi tạo Express Server để duy trì kết nối Live trên Render
+// Khởi tạo Express Server duy trì 24/7 trên Render
 app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
@@ -15,10 +15,8 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 
-// Đường dẫn file cơ sở dữ liệu người dùng
 const USERS_FILE = './users.json';
 
-// Hàm đọc dữ liệu người dùng
 function loadUsers() {
   try {
     if (!fs.existsSync(USERS_FILE)) {
@@ -32,7 +30,6 @@ function loadUsers() {
   }
 }
 
-// Hàm ghi dữ liệu người dùng
 function saveUsers(data) {
   try {
     fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
@@ -41,14 +38,13 @@ function saveUsers(data) {
   }
 }
 
-// Cấu hình Bot Telegram
 const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqdHMhjmc';
 const bot = new TelegramBot(token, { polling: true });
 
 // API Key gmailotp.site của bạn
 const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
 
-// Bảng ánh xạ giá tiền và ID dịch vụ trên gmailotp.site
+// Cấu hình dịch vụ, giá tiền và ID dịch vụ tương ứng
 const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
@@ -58,14 +54,13 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: 'tiktok_colombia' }
 };
 
-// Lệnh /start hiển thị menu chính
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
 
   let db = loadUsers();
   if (!db[userId]) {
-    db[userId] = { balance: 12000 }; // Số dư mặc định
+    db[userId] = { balance: 12000 };
     saveUsers(db);
   }
 
@@ -100,7 +95,6 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// Lắng nghe sự kiện bấm nút trên giao diện
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id.toString();
@@ -111,7 +105,6 @@ bot.on('callback_query', async (query) => {
     db[userId] = { balance: 12000 };
   }
 
-  // 1. Kiểm tra số dư
   if (action === 'check_balance') {
     return bot.answerCallbackQuery(query.id, {
       text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`,
@@ -119,19 +112,18 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // 2. Hỗ trợ Admin
+  // Nút Hỗ trợ Admin đã chỉnh sửa link chuẩn https://t.me/phanhe
   if (action === 'support_admin') {
     return bot.sendMessage(
       chatId,
       `📞 **HỖ TRỢ KHÁCH HÀNG**\n\n` +
       `👤 ID Telegram của bạn: \`${userId}\`\n` +
       `💬 Liên hệ trực tiếp Admin để nạp tiền hoặc giải đáp thắc mắc:\n` +
-      `👉 Admin: Nhắn qua tài khoản ID: \`https://t.me/phanhe\``,
-      { parse_mode: 'Markdown' }
+      `👉 Admin: https://t.me/phanhe`,
+      { disable_web_page_preview: true }
     );
   }
 
-  // 3. Xử lý thuê số dịch vụ
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
@@ -139,25 +131,23 @@ bot.on('callback_query', async (query) => {
     const price = serviceInfo.price;
     const serviceCode = serviceInfo.service_id;
 
-    // Kiểm tra số dư người dùng
     if (db[userId].balance < price) {
-      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`);
+      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`, { parse_mode: 'Markdown' });
     }
 
     try {
-      // Gọi API lấy số từ gmailotp.site
-      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=$6565dd2cdb5945cea58563c10af9ca6e}&service=${serviceCode}`);
+      const apiResponse = await axios.get(`https://gmailotp.site/api/get_number?apikey=${API_KEY}&service=${serviceCode}`);
       const resData = apiResponse.data;
 
-      if (resData && (resData.status === true || resData.success === true)) {
+      console.log('API Response:', resData);
+
+      if (resData && (resData.status === true || resData.success === true || resData.phone)) {
         const phoneNum = resData.phone || resData.number || 'Không xác định';
         const reqId = resData.request_id || resData.id || 'N/A';
 
-        // Trừ tiền tương ứng ứng với giá dịch vụ
         db[userId].balance -= price;
         saveUsers(db);
 
-        // Gửi thông báo thuê số thành công
         await bot.sendMessage(
           chatId,
           `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
@@ -167,34 +157,35 @@ bot.on('callback_query', async (query) => {
           `*Sau khi nhập số trên app, bấm nút bên dưới để lấy mã OTP:*`,
           {
             parse_mode: 'Markdown',
-            reply_markup: {inline_keyboard: [
+            reply_markup: {
+              inline_keyboard: [
                 [{ text: '📩 Lấy OTP', callback_data: `check_otp_${reqId}_${action}` }]
               ]
             }
           }
         );
 
-        // --- BỘ ĐẾM 10 PHÚT TỰ ĐỘNG HOÀN TIỀN NẾU KHÔNG CÓ OTP ---
+        // Bộ đếm 10 phút hoàn tiền tự động nếu không nhận được OTP
         setTimeout(async () => {
           let currentDb = loadUsers();
           if (currentDb[userId]) {
-            // Hoàn lại chính xác số tiền đã trừ vào tài khoản
             currentDb[userId].balance += price;
             saveUsers(currentDb);
 
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 10 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`
+              `⏰ **ĐÃ HẾT 10 PHÚT!**\nĐơn hàng \`${reqId}\` chưa nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
+              { parse_mode: 'Markdown' }
             ).catch(e => console.error(e));
           }
         }, 10 * 60 * 1000);
 
       } else {
-        bot.sendMessage(chatId, `❌ Hệ thống báo: ${JSON.stringify(resData)}`);
+        bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc tạm thời hết số. Vui lòng thử lại sau ít phút!`);
       }
     } catch (err) {
-      console.error('Lỗi API lấy số:', err);
-      bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc hết số vui lòng thử lại sau.`);
+      console.error('Lỗi API lấy số:', err.message);
+      bot.sendMessage(chatId, `❌ Hệ thống đang bận hoặc tạm thời hết số. Vui lòng thử lại sau ít phút!`);
     }
   }
 });
