@@ -104,16 +104,16 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
-// HỆ THỐNG CHỐNG SPAM (Lưu thời gian thao tác gần nhất của từng User)
+// HỆ THỐNG CHỐNG SPAM
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000; // 3 giây
 
 function checkSpam(userId) {
-  if (userId.toString() === ADMIN_ID) return false; // Admin được bỏ qua chống spam
+  if (userId.toString() === ADMIN_ID) return false;
   const now = Date.now();
   const lastTime = cooldowns.get(userId) || 0;
   if (now - lastTime < COOLDOWN_TIME) {
-    return true; // Đang trong thời gian spam
+    return true;
   }
   cooldowns.set(userId, now);
   return false;
@@ -173,7 +173,8 @@ updateNpaServiceIds();
 
 bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & ví' },
-  { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' }
+  { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
+  { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
 ]);
 
 function getServiceInfo(action) {
@@ -304,9 +305,45 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // Kiểm tra chống spam tin nhắn liên tục
   if (checkSpam(userId)) {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
+  // LỆNH GỬI THÔNG BÁO CHO TOÀN BỘ THÀNH VIÊN (CHỈ ADMIN)
+  if (text.startsWith('/sendall')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const messageContent = text.replace('/sendall', '').trim();
+    if (!messageContent) {
+      return bot.sendMessage(chatId, `⚠️ Vui lòng nhập nội dung thông báo. Ví dụ: /sendall Bảo trì hệ thống...`);
+    }
+
+    bot.sendMessage(chatId, `⏳ Đang gửi thông báo đến tất cả thành viên...`);
+    
+    try {
+      const allUsers = await User.find({});
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const u of allUsers) {
+        try {
+          await bot.sendMessage(
+            u.userId,
+            `📢 **THÔNG BÁO TỪ HỆ THỐNG**\n\n${messageContent}`,
+            { parse_mode: 'Markdown', disable_web_page_preview: true }
+          );
+          successCount++;
+          // Chờ 50ms giữa mỗi tin nhắn để tránh bị Telegram chặn do gửi quá nhanh (Rate limit)
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      bot.sendMessage(chatId, `✅ **GỬI THÔNG BÁO HOÀN TẤT!**\n- Thành công: ${successCount}\n- Thất bại (chặn bot): ${failCount}`, { parse_mode: 'Markdown' });
+    } catch (err) {
+      bot.sendMessage(chatId, `❌ Lỗi khi gửi thông báo hàng loạt.`);
+    }
+    return;
   }
 
   const isJoined = await checkUserMembership(userId);
@@ -364,7 +401,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // Kiểm tra chống spam click nút liên tục
   if (checkSpam(userId)) {
     return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
   }
