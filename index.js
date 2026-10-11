@@ -47,7 +47,7 @@ const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
-// Username nhóm Telegram chính xác
+// Username nhóm Telegram
 const REQUIRED_GROUP = '@htlach';
 
 bot.setMyCommands([
@@ -78,14 +78,14 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Danh sách dịch vụ - Chuẩn hóa toàn bộ tên Shopee chỉ gồm chữ "Shopee" + Số
+// Map ID dịch vụ chuẩn API NPA & GmailOTP
 const SERVICE_MAPPING = {
-  // --- SHOPEE (Chỉ gồm Shopee + Số) ---
-  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
-  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
-  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
-  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_trau', provider: 'npa' },
-  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_call', provider: 'npa' },
+  // --- SHOPEE ---
+  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee', provider: 'npa' },
+  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee', provider: 'npa' },
+  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_v2', provider: 'npa' },
+  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_v3', provider: 'npa' },
+  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_voice', provider: 'npa' },
   'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
   'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
 
@@ -103,8 +103,8 @@ const SERVICE_MAPPING = {
   'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: 'dyn_227006400d', provider: 'npa' },
 
   // --- THUÊ SỐ KHÁC ---
-  'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria', provider: 'npa' },
-  'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat', provider: 'npa' }
+  'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria_vn', provider: 'npa' },
+  'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat_vn', provider: 'npa' }
 };
 
 function sendJoinGroupPrompt(chatId) {
@@ -334,7 +334,6 @@ bot.on('callback_query', async (query) => {
     );
   }
 
-  // Menu Shopee (100% định dạng chữ + số)
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ **CHỌN DỊCH VỤ SHOPEE**`, {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
@@ -405,7 +404,7 @@ bot.on('callback_query', async (query) => {
     return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
-  // Xử lý thuê số
+  // Xử lý lấy số
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
@@ -448,7 +447,7 @@ bot.on('callback_query', async (query) => {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
         } else {
-          return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.Msg || 'Hết số hoặc số dư API không đủ'}`);
+          return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.Msg || resData.message || 'Tạm thời hết số hoặc ID dịch vụ chưa chính xác'}`);
         }
       }
 
