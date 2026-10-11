@@ -48,6 +48,24 @@ const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
+// Kênh bắt buộc tham gia
+const REQUIRED_CHANNEL = '@htlach'; // Hoặc username nhóm/kênh của bạn
+
+async function checkUserMembership(userId) {
+  if (userId === ADMIN_ID) return true;
+  try {
+    const chatMember = await bot.getChatMember(REQUIRED_CHANNEL, userId);
+    const status = chatMember.status;
+    if (status === 'creator' || status === 'administrator' || status === 'member') {
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('Lỗi kiểm tra thành viên nhóm:', err.message);
+    return false; 
+  }
+}
+
 // Biến lưu ID dịch vụ động của NPA
 let npaServiceIds = {
   shopee_ga: 'shopee_ga',
@@ -160,6 +178,16 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
+  // Kiểm tra bắt buộc tham gia nhóm trước khi xử lý lệnh
+  const isJoined = await checkUserMembership(userId);
+  if (!isJoined) {
+    return bot.sendMessage(
+      chatId, 
+      `⚠️ **Bạn cần tham gia nhóm trước khi sử dụng bot!**\n👉 Vui lòng tham gia tại: https://t.me/htlach\n\nSau khi tham gia xong, hãy nhắn lại /start để sử dụng.`,
+      { parse_mode: 'Markdown', disable_web_page_preview: true }
+    );
+  }
+
   if (text.startsWith('/start') || text.startsWith('/menu')) {
     return sendMainMenu(chatId, userId);
   }
@@ -271,6 +299,15 @@ bot.on('callback_query', async (query) => {
   const messageId = query.message.message_id;
   const userId = query.from.id.toString();
   const action = query.data;
+
+  // Kiểm tra bắt buộc tham gia nhóm trước khi bấm nút
+  const isJoined = await checkUserMembership(userId);
+  if (!isJoined) {
+    return bot.answerCallbackQuery(query.id, {
+      text: '❌ Bạn cần tham gia nhóm https://t.me/htlach để sử dụng chức năng này!',
+      show_alert: true
+    });
+  }
 
   const user = await getUser(userId);
 
