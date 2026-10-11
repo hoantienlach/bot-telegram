@@ -87,7 +87,7 @@ bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
   { command: 'nap', description: 'Admin: Nạp tiền (/nap ID Số_tiền)' },
   { command: 'check', description: 'Admin: Kiểm tra số dư (/check ID)' },
-  { command: 'stats', description: 'Admin: Thống kê số lượng thành viên' }
+  { command: 'stats', description: 'Admin: Thống kê số lượng thành viên & nạp tiền' }
 ]).then(() => {
   console.log('Đã cập nhật lệnh Telegram thành công!');
 }).catch(err => {
@@ -152,16 +152,18 @@ function sendJoinGroupPrompt(chatId) {
 function sendMainMenu(chatId, userId) {
   let db = loadUsers();
   if (!db[userId]) {
-    db[userId] = { balance: 12000 };
+    db[userId] = { balance: 12000, total_deposited: 12000 };
     saveUsers(db);
   }
 
-  const userBalance = db[userId].balance.toLocaleString();
+  const userBalance = (db[userId].balance || 0).toLocaleString();
+  const userDeposited = (db[userId].total_deposited || 0).toLocaleString();
   const totalUsers = Object.keys(db).length;
 
   let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
-                 `💰 Số dư ví: ${userBalance}đ\n\n` +
+                 `💰 Số dư ví: ${userBalance}đ\n` +
+                 `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
                  `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
   if (userId === ADMIN_ID) {
@@ -197,6 +199,7 @@ bot.onText(/\/start/, async (msg) => {
   sendMainMenu(chatId, userId);
 });
 
+// Lệnh Admin Nạp Tiền
 bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -207,22 +210,42 @@ bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const amount = parseInt(match[2], 10);
 
   let db = loadUsers();
-  if (!db[targetUserId]) db[targetUserId] = { balance: 0 };
+  if (!db[targetUserId]) db[targetUserId] = { balance: 0, total_deposited: 0 };
 
-  db[targetUserId].balance += amount;
+  db[targetUserId].balance = (db[targetUserId].balance || 0) + amount;
+  db[targetUserId].total_deposited = (db[targetUserId].total_deposited || 0) + amount;
   saveUsers(db);
 
   const newBalance = db[targetUserId].balance.toLocaleString();
+  const totalDep = db[targetUserId].total_deposited.toLocaleString();
 
-  bot.sendMessage(chatId, `✅ Đã nạp thành công ${amount.toLocaleString()}đ cho user \`${targetUserId}\`. Số dư mới: ${newBalance}đ`, { parse_mode: 'Markdown' });
-  bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**. Số dư mới: ${newBalance}đ`, { parse_mode: 'Markdown' }).catch(() => {});
+  bot.sendMessage(chatId, `✅ Đã nạp **+${amount.toLocaleString()}đ** cho user \`${targetUserId}\`.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' });
+  bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' }).catch(() => {});
 });
 
+// Lệnh Admin Thống Kê Tổng Thống Kê Hệ Thống
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   if (msg.from.id.toString() !== ADMIN_ID) return;
   const db = loadUsers();
-  bot.sendMessage(chatId, `📊 Tổng thành viên hệ thống: **${Object.keys(db).length}** người`, { parse_mode: 'Markdown' });
+  
+  const totalUsers = Object.keys(db).length;
+  let totalDepositedAll = 0;
+  let totalBalanceAll = 0;
+
+  Object.values(db).forEach(user => {
+    totalDepositedAll += (user.total_deposited || 0);
+    totalBalanceAll += (user.balance || 0);
+  });
+
+  bot.sendMessage(
+    chatId,
+    `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
+    `👥 Tổng thành viên: **${totalUsers}** người\n` +
+    `💵 Tổng số tiền đã nạp: **${totalDepositedAll.toLocaleString()}đ**\n` +
+    `💰 Tổng số dư ví hiện tại: **${totalBalanceAll.toLocaleString()}đ**`,
+    { parse_mode: 'Markdown' }
+  );
 });
 
 bot.onText(/\/check (\d+)/, (msg, match) => {
@@ -231,7 +254,11 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   const db = loadUsers();
   const targetId = match[1];
   if (!db[targetId]) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
-  bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
+  
+  const bal = (db[targetId].balance || 0).toLocaleString();
+  const dep = (db[targetId].total_deposited || 0).toLocaleString();
+
+  bot.sendMessage(chatId, `🔍 User \`${targetId}\`:\n💰 Số dư ví: **${bal}đ**\n💳 Tổng đã nạp: **${dep}đ**`, { parse_mode: 'Markdown' });
 });
 
 bot.on('message', async (msg) => {
@@ -267,7 +294,6 @@ bot.on('message', async (msg) => {
   } catch (err) {}
 });
 
-// Hàm ngầm gọi API hủy số đối tác mà không hiển thị ra cho khách
 async function forceCancelGmailOtp(reqId, maxAttempts = 5) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -293,15 +319,17 @@ bot.on('callback_query', async (query) => {
   }
 
   let db = loadUsers();
-  if (!db[userId]) db[userId] = { balance: 12000 };
+  if (!db[userId]) db[userId] = { balance: 12000, total_deposited: 12000 };
 
   if (action === 'rent_more' || action === 'back_main') {
-    const userBalance = db[userId].balance.toLocaleString();
+    const userBalance = (db[userId].balance || 0).toLocaleString();
+    const userDeposited = (db[userId].total_deposited || 0).toLocaleString();
     const totalUsers = Object.keys(db).length;
 
     let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                    `👤 ID của bạn: \`${userId}\`\n` +
-                   `💰 Số dư ví: ${userBalance}đ\n\n` +
+                   `💰 Số dư ví: ${userBalance}đ\n` +
+                   `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
                    `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
     if (userId === ADMIN_ID) menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
@@ -388,7 +416,9 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'check_balance') {
-    return bot.answerCallbackQuery(query.id, { text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`, show_alert: true });
+    const bal = (db[userId].balance || 0).toLocaleString();
+    const dep = (db[userId].total_deposited || 0).toLocaleString();
+    return bot.answerCallbackQuery(query.id, { text: `💰 Số dư ví: ${bal}đ | 💳 Tổng nạp: ${dep}đ`, show_alert: true });
   }
 
   if (action === 'support_admin') {
@@ -504,13 +534,11 @@ bot.on('callback_query', async (query) => {
         }
       }, 5000);
 
-      // ĐÚNG TRÒN 5 PHÚT HẾT GIỜ TỰ ĐỘNG HOÀN TIỀN VÀ ÂM THẦM HỦY SỐ BÊN ĐỐI TÁC
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
 
-        // Hủy số ngầm bên đối tác
         if (provider === 'gmailotp' && reqId && reqId !== 'N/A') {
           forceCancelGmailOtp(reqId, 5);
         }
