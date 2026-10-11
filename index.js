@@ -60,7 +60,8 @@ let npaServiceIds = {
   katinat: 'katinat'
 };
 
-// Cập nhật Service ID từ NPA
+const activeOrders = {};
+
 async function updateNpaServiceIds() {
   try {
     const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
@@ -95,7 +96,6 @@ bot.setMyCommands([
   console.error('Lỗi thiết lập lệnh:', err.message);
 });
 
-// Kiểm tra thành viên group
 async function checkUserInGroup(userId) {
   if (userId === ADMIN_ID) return true;
   try {
@@ -108,7 +108,6 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Map dịch vụ
 function getServiceInfo(action) {
   const map = {
     'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
@@ -237,7 +236,6 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
 });
 
-// TỰ ĐỘNG LẤY 2FA KHI DÁN TRỰC TIẾP
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -268,10 +266,22 @@ bot.on('message', async (msg) => {
       `✅ Mã OTP: \`${token2fa}\``,
       { parse_mode: 'Markdown' }
     );
-  } catch (err) {
-    // Bỏ qua nếu tin nhắn gửi vào không phải secret key 2FA hợp lệ
-  }
+  } catch (err) {}
 });
+
+// Hàm hủy số chuẩn action=cancel của GmailOTP
+async function forceCancelGmailOtp(reqId, maxAttempts = 5) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const cancelRes = await axios.get(`https://gmailotp.site/api?action=cancel&key=${API_KEY_GMAILOTP}&id=${reqId}`);
+      console.log(`[GmailOTP] Thử hủy lần ${i + 1} cho đơn ${reqId}:`, cancelRes.data);
+      if (cancelRes.data && (cancelRes.data.success === true || cancelRes.data.status === 'success' || cancelRes.data.msg === 'success')) {
+        break;
+      }
+    } catch (err) {}
+    await new Promise(res => setTimeout(res, 5000));
+  }
+}
 
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
@@ -388,7 +398,35 @@ bot.on('callback_query', async (query) => {
     return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
-  // Thuê số
+  if (action.startsWith('cancel_order_')) {
+    const reqId = action.replace('cancel_order_', '');
+    const order = activeOrders[reqId];
+
+    if (!order) {
+      return bot.answerCallbackQuery(query.id, { text: '⚠️ Đơn hàng đã kết thúc hoặc không tồn tại!', show_alert: true });
+    }
+
+    try {
+      if (order.provider === 'gmailotp') {
+        forceCancelGmailOtp(reqId, 3);
+      }
+
+      order.isCompleted = true;
+      clearInterval(order.checkInterval);
+      clearTimeout(order.timeoutRefund);
+
+      db[userId].balance += order.price;
+      saveUsers(db);
+
+      delete activeOrders[reqId];
+
+      bot.answerCallbackQuery(query.id, { text: '✅ Đã gửi yêu cầu hủy đơn!', show_alert: false });
+      return bot.sendMessage(chatId, `❌ **ĐÃ HỦY ĐƠN HÀNG!** Đơn hàng \`${reqId}\` đã được hủy và hoàn tiền **${order.price.toLocaleString()}đ** về ví.`, { parse_mode: 'Markdown' });
+    } catch (err) {
+      return bot.answerCallbackQuery(query.id, { text: '❌ Lỗi kết nối khi gửi lệnh hủy!', show_alert: true });
+    }
+  }
+
   if (action.startsWith('rent_')) {
     const serviceInfo = getServiceInfo(action);
     if (!serviceInfo) return;
@@ -446,7 +484,14 @@ bot.on('callback_query', async (query) => {
         `🆔 **Mã đơn:** \`${reqId}\`\n` +
         `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
         `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
-        { parse_mode: 'Markdown' }
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '❌ Hủy số này', callback_data: `cancel_order_${reqId}` }]
+            ]
+          }
+        }
       );
 
       let isCompleted = false;
@@ -478,6 +523,7 @@ bot.on('callback_query', async (query) => {
             isCompleted = true;
             clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
+            delete activeOrders[reqId];
 
             bot.sendMessage(
               chatId,
@@ -488,7 +534,7 @@ bot.on('callback_query', async (query) => {
               {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                  inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
+                  inline_keyboard: [[{ text: '🔄 Thuê tiếp số này', callback_data: action }]]
                 }
               }
             );
@@ -498,20 +544,14 @@ bot.on('callback_query', async (query) => {
         }
       }, 5000);
 
-      // XỬ LÝ KHI HẾT 5 PHÚT
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
+        delete activeOrders[reqId];
 
-        // Tự động gọi API hủy số trực tiếp trên web GmailOTP
         if (provider === 'gmailotp' && reqId && reqId !== 'N/A') {
-          try {
-            await axios.get(`https://gmailotp.site/api?action=cancel_number&key=${API_KEY_GMAILOTP}&id=${reqId}`);
-            console.log(`[GmailOTP] Đã tự động gửi lệnh hủy số cho đơn: ${reqId}`);
-          } catch (err) {
-            console.error(`[GmailOTP] Lỗi gửi lệnh hủy đơn ${reqId}:`, err.message);
-          }
+          forceCancelGmailOtp(reqId, 5);
         }
 
         let currentDb = loadUsers();
@@ -521,16 +561,18 @@ bot.on('callback_query', async (query) => {
 
           bot.sendMessage(
             chatId,
-            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hủy và hoàn tiền **${price.toLocaleString()}đ**.`,
+            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được tự động hủy trên web và hoàn tiền **${price.toLocaleString()}đ** vào ví.`,
             {
               parse_mode: 'Markdown',
               reply_markup: {
-                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
+                inline_keyboard: [[{ text: '🔄 Thuê tiếp số này', callback_data: action }]]
               }
             }
           ).catch(() => {});
         }
-      }, 5 * 60 * 1000);
+      }, 300 * 1000);
+
+      activeOrders[reqId] = { provider, price, isCompleted, checkInterval, timeoutRefund };
 
     } catch (err) {
       console.error(err.message);
