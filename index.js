@@ -101,8 +101,8 @@ const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
-const REQUIRED_CHANNEL = '@htlach'; // Nhóm cấu hình quét thành viên
-const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; // Link mời hiển thị cho người dùng
+const REQUIRED_CHANNEL = '@htlach'; 
+const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
 async function checkUserMembership(userId) {
   if (userId.toString() === ADMIN_ID) return true;
@@ -293,8 +293,18 @@ bot.on('message', async (msg) => {
   if (!isJoined) {
     return bot.sendMessage(
       chatId, 
-      `⚠️ **Bạn cần tham gia nhóm trước khi sử dụng bot!**\n👉 Vui lòng tham gia tại: ${INVITE_LINK}\n\nSau khi tham gia xong, hãy nhắn lại /start để sử dụng.`,
-      { parse_mode: 'Markdown', disable_web_page_preview: true }
+      `⚠️ **BẠN CHƯA THAM GIA NHÓM!**\n\n` +
+      `👉 Vui lòng tham gia nhóm chính thức của hệ thống để sử dụng đầy đủ các tính năng thuê số và nạp tiền tự động.`,
+      {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔗 Tham gia nhóm ngay', url: INVITE_LINK }],
+            [{ text: '🔄 Đã tham gia, bấm để tiếp tục /start', callback_data: 'back_main' }]
+          ]
+        }
+      }
     );
   }
 
@@ -336,7 +346,7 @@ bot.on('callback_query', async (query) => {
 
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
-    return bot.answerCallbackQuery(query.id, { text: `❌ Cần tham gia nhóm ${INVITE_LINK} trước!`, show_alert: true });
+    return bot.answerCallbackQuery(query.id, { text: `❌ Vui lòng bấm tham gia nhóm trước!`, show_alert: true });
   }
 
   const user = await getUser(userId);
