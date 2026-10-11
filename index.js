@@ -9,7 +9,18 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server HTTP đang chạy trên cổng ${PORT}`);
 });
+const mongoose = require('mongoose');
 
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log('✅ Đã kết nối MongoDB thành công!');
+})
+.catch((err) => {
+  console.error('❌ Lỗi kết nối MongoDB:', err);
+});
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
@@ -102,7 +113,7 @@ async function checkUserInGroup(userId) {
     return ['creator', 'administrator', 'member'].includes(status);
   } catch (err) {
     console.error('Lỗi kiểm tra group:', err.message);
-    return true; // Bypass an toàn để không bị kẹt khi test
+    return false;
   }
 }
 
@@ -187,6 +198,18 @@ function sendMainMenu(chatId, userId) {
   });
 }
 
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+
+  const isJoined = await checkUserInGroup(userId);
+  if (!isJoined) {
+    return sendJoinGroupPrompt(chatId);
+  }
+
+  sendMainMenu(chatId, userId);
+});
+
 bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -252,19 +275,12 @@ bot.on('message', async (msg) => {
   const userId = msg.from.id.toString();
   const text = msg.text;
 
-  if (!text) return;
+  if (!text || text.startsWith('/')) return;
 
   const isJoined = await checkUserInGroup(userId);
   if (!isJoined) {
     return sendJoinGroupPrompt(chatId);
   }
-
-  // Xử lý lệnh /start hoặc /menu trực tiếp ở đây để tránh bị kẹt
-  if (text.startsWith('/start') || text.startsWith('/menu')) {
-    return sendMainMenu(chatId, userId);
-  }
-
-  if (text.startsWith('/')) return;
 
   let cleanSecret = '';
   if (text.includes('|')) {
