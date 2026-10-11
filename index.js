@@ -100,7 +100,7 @@ const bot = new TelegramBot(token, { polling: true });
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
-const REQUIRED_CHANNEL = '@htlach'; // Nhóm chính thức của bạn
+const REQUIRED_CHANNEL = '@htlach';
 
 async function checkUserMembership(userId) {
   if (userId === ADMIN_ID) return true;
@@ -295,7 +295,7 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(
       chatId, 
       `⚠️ **Bạn cần tham gia nhóm trước khi sử dụng bot!**\n👉 Vui lòng tham gia tại: https://t.me/htlach\n\nSau khi tham gia xong, hãy nhắn lại /start để sử dụng.`,
-      { parse_mode: 'Markdown', disable_web_page_preview: true }
+      { parse_mode: 'Markdown', disable_web_page_preview: true } // Đã thêm option ẩn preview ở đây
     );
   }
 
