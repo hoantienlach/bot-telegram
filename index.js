@@ -9,6 +9,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server HTTP đang chạy trên cổng ${PORT}`);
 });
+
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
@@ -44,9 +45,6 @@ const bot = new TelegramBot(token, { polling: true });
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
-
-// Username nhóm Telegram
-const REQUIRED_GROUP = '@htlach';
 
 // Biến lưu ID dịch vụ động của NPA
 let npaServiceIds = {
@@ -93,18 +91,6 @@ bot.setMyCommands([
   console.error('Lỗi thiết lập lệnh:', err.message);
 });
 
-async function checkUserInGroup(userId) {
-  if (userId === ADMIN_ID) return true;
-  try {
-    const chatMember = await bot.getChatMember(REQUIRED_GROUP, userId);
-    const status = chatMember.status;
-    return ['creator', 'administrator', 'member'].includes(status);
-  } catch (err) {
-    console.error('Lỗi kiểm tra group:', err.message);
-    return false;
-  }
-}
-
 function getServiceInfo(action) {
   const map = {
     'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
@@ -129,23 +115,6 @@ function getServiceInfo(action) {
     'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: npaServiceIds.katinat, provider: 'npa' }
   };
   return map[action];
-}
-
-function sendJoinGroupPrompt(chatId) {
-  bot.sendMessage(
-    chatId,
-    `⚠️ **BẠN CHƯA THAM GIA GROUP!**\n\n` +
-    `Vui lòng tham gia group bên dưới để tiếp tục sử dụng hệ thống thuê số và 2FA:`,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🔗 Tham gia Group ngay', url: 'https://t.me/htlach' }],
-          [{ text: '🔄 Tôi đã tham gia (Kiểm tra lại)', callback_data: 'back_main' }]
-        ]
-      }
-    }
-  );
 }
 
 function sendMainMenu(chatId, userId) {
@@ -186,90 +155,88 @@ function sendMainMenu(chatId, userId) {
   });
 }
 
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
-  const isJoined = await checkUserInGroup(userId);
-  if (!isJoined) {
-    return sendJoinGroupPrompt(chatId);
-  }
-
-  sendMainMenu(chatId, userId);
-});
-
-bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
-  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-
-  const targetUserId = match[1];
-  const amount = parseInt(match[2], 10);
-
-  let db = loadUsers();
-  if (!db[targetUserId]) db[targetUserId] = { balance: 0, total_deposited: 0 };
-
-  db[targetUserId].balance = (db[targetUserId].balance || 0) + amount;
-  db[targetUserId].total_deposited = (db[targetUserId].total_deposited || 0) + amount;
-  saveUsers(db);
-
-  const newBalance = db[targetUserId].balance.toLocaleString();
-  const totalDep = db[targetUserId].total_deposited.toLocaleString();
-
-  bot.sendMessage(chatId, `✅ Đã nạp **+${amount.toLocaleString()}đ** cho user \`${targetUserId}\`.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' });
-  bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' }).catch(() => {});
-});
-
-bot.onText(/\/stats/, (msg) => {
-  const chatId = msg.chat.id;
-  if (msg.from.id.toString() !== ADMIN_ID) return;
-  const db = loadUsers();
-  
-  const totalUsers = Object.keys(db).length;
-  let totalDepositedAll = 0;
-  let totalBalanceAll = 0;
-
-  Object.values(db).forEach(user => {
-    totalDepositedAll += (user.total_deposited || 0);
-    totalBalanceAll += (user.balance || 0);
-  });
-
-  bot.sendMessage(
-    chatId,
-    `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
-    `👥 Tổng thành viên: **${totalUsers}** người\n` +
-    `💵 Tổng số tiền đã nạp: **${totalDepositedAll.toLocaleString()}đ**\n` +
-    `💰 Tổng số dư ví hiện tại: **${totalBalanceAll.toLocaleString()}đ**`,
-    { parse_mode: 'Markdown' }
-  );
-});
-
-bot.onText(/\/check (\d+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  if (msg.from.id.toString() !== ADMIN_ID) return;
-  const db = loadUsers();
-  const targetId = match[1];
-  if (!db[targetId]) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
-  
-  const bal = (db[targetId].balance || 0).toLocaleString();
-  const dep = (db[targetId].total_deposited || 0).toLocaleString();
-
-  bot.sendMessage(chatId, `🔍 User \`${targetId}\`:\n💰 Số dư ví: **${bal}đ**\n💳 Tổng đã nạp: **${dep}đ**`, { parse_mode: 'Markdown' });
-});
-
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
   const text = msg.text;
 
-  if (!text || text.startsWith('/')) return;
+  if (!text) return;
 
-  const isJoined = await checkUserInGroup(userId);
-  if (!isJoined) {
-    return sendJoinGroupPrompt(chatId);
+  // Bắt lệnh /start hoặc /menu trực tiếp tại đây để không bao giờ bị kẹt
+  if (text.startsWith('/start') || text.startsWith('/menu')) {
+    return sendMainMenu(chatId, userId);
   }
 
+  // Xử lý lệnh nạp tiền cho Admin: /nap ID Số_tiền
+  if (text.startsWith('/nap')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    if (parts.length >= 3) {
+      const targetUserId = parts[1];
+      const amount = parseInt(parts[2], 10);
+
+      let db = loadUsers();
+      if (!db[targetUserId]) db[targetUserId] = { balance: 0, total_deposited: 0 };
+
+      db[targetUserId].balance = (db[targetUserId].balance || 0) + amount;
+      db[targetUserId].total_deposited = (db[targetUserId].total_deposited || 0) + amount;
+      saveUsers(db);
+
+      const newBalance = db[targetUserId].balance.toLocaleString();
+      const totalDep = db[targetUserId].total_deposited.toLocaleString();
+
+      bot.sendMessage(chatId, `✅ Đã nạp **+${amount.toLocaleString()}đ** cho user \`${targetUserId}\`.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' });
+      bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' }).catch(() => {});
+    } else {
+      bot.sendMessage(chatId, `⚠️ Sai cú pháp! Sử dụng: \`/nap ID Số_tiền\``, { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
+  // Xử lý lệnh thống kê cho Admin: /stats
+  if (text.startsWith('/stats')) {
+    if (userId !== ADMIN_ID) return;
+    const db = loadUsers();
+    
+    const totalUsers = Object.keys(db).length;
+    let totalDepositedAll = 0;
+    let totalBalanceAll = 0;
+
+    Object.values(db).forEach(user => {
+      totalDepositedAll += (user.total_deposited || 0);
+      totalBalanceAll += (user.balance || 0);
+    });
+
+    return bot.sendMessage(
+      chatId,
+      `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
+      `👥 Tổng thành viên: **${totalUsers}** người\n` +
+      `💵 Tổng số tiền đã nạp: **${totalDepositedAll.toLocaleString()}đ**\n` +
+      `💰 Tổng số dư ví hiện tại: **${totalBalanceAll.toLocaleString()}đ**`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // Xử lý lệnh kiểm tra user cho Admin: /check ID
+  if (text.startsWith('/check')) {
+    if (userId !== ADMIN_ID) return;
+    const parts = text.split(' ');
+    if (parts.length >= 2) {
+      const db = loadUsers();
+      const targetId = parts[1];
+      if (!db[targetId]) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
+      
+      const bal = (db[targetId].balance || 0).toLocaleString();
+      const dep = (db[targetId].total_deposited || 0).toLocaleString();
+
+      return bot.sendMessage(chatId, `🔍 User \`${targetId}\`:\n💰 Số dư ví: **${bal}đ**\n💳 Tổng đã nạp: **${dep}đ**`, { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
+  if (text.startsWith('/')) return;
+
+  // Xử lý mã 2FA
   let cleanSecret = '';
   if (text.includes('|')) {
     const parts = text.split('|');
@@ -308,12 +275,6 @@ bot.on('callback_query', async (query) => {
   const messageId = query.message.message_id;
   const userId = query.from.id.toString();
   const action = query.data;
-
-  const isJoined = await checkUserInGroup(userId);
-  if (!isJoined) {
-    bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn cần tham gia group trước!', show_alert: true });
-    return sendJoinGroupPrompt(chatId);
-  }
 
   let db = loadUsers();
   if (!db[userId]) db[userId] = { balance: 0, total_deposited: 0 };
