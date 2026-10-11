@@ -59,12 +59,18 @@ bot.setMyCommands([
 });
 
 const SERVICE_MAPPING = {
+  // Shopee
   'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
   'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
+  // TikTok mới (8 dịch vụ)
   'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272' },
   'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194' },
-  'rent_tt_chile': { name: 'TikTok Chile', price: 1600, service_id: '19404' },
-  'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: '26145' }
+  'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244' },
+  'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404' },
+  'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145' },
+  'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421' },
+  'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429' },
+  'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430' }
 };
 
 function sendMainMenu(chatId, userId) {
@@ -145,7 +151,7 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
 });
 
-// Xử lý tự động bóc tách chuỗi 2FA (hỗ trợ cả dạng dán nguyên cụm lẫn dán mỗi key)
+// Xử lý tự động bóc tách chuỗi 2FA
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -157,14 +163,10 @@ bot.on('message', async (msg) => {
     userStates[userId] = null;
 
     let cleanSecret = '';
-
-    // Nếu người dùng dán định dạng có chứa dấu | (VD: mail|pass|secret)
     if (text.includes('|')) {
       const parts = text.split('|');
-      // Lấy phần tử cuối cùng trong mảng sau khi cắt dấu |
       cleanSecret = parts[parts.length - 1].trim().toUpperCase();
     } else {
-      // Nếu người dùng chỉ dán mỗi secret key thông thường
       cleanSecret = text.replace(/\s+/g, '').toUpperCase();
     }
 
@@ -280,8 +282,12 @@ bot.on('callback_query', async (query) => {
         inline_keyboard: [
           [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
           [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
-          [{ text: '🎵 TikTok Chile - 1.600đ', callback_data: 'rent_tt_chile' }],
-          [{ text: '🎵 TikTok Colombia - 1.600đ', callback_data: 'rent_tt_colombia' }],
+          [{ text: '🎵 TikTok Indonesia 21 - 1.600đ', callback_data: 'rent_tt_indo21' }],
+          [{ text: '🎵 TikTok Chile 9 - 1.600đ', callback_data: 'rent_tt_chile9' }],
+          [{ text: '🎵 TikTok Chile 12 - 1.600đ', callback_data: 'rent_tt_chile12' }],
+          [{ text: '🎵 TikTok Chile 7 - 1.600đ', callback_data: 'rent_tt_chile7' }],
+          [{ text: '🎵 TikTok Colombia 7 - 1.600đ', callback_data: 'rent_tt_colombia7' }],
+          [{ text: '🎵 TikTok Colombia 8 - 1.600đ', callback_data: 'rent_tt_colombia8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
