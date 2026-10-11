@@ -78,14 +78,14 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Map ID dịch vụ chuẩn theo API NPA (Bạn có thể đổi lại id chính xác lấy từ /api/v1/services nếu cần)
+// Map ID dịch vụ chuẩn NPA & GmailOTP
 const SERVICE_MAPPING = {
   // --- SHOPEE ---
-  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee', provider: 'npa' },
-  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee', provider: 'npa' },
-  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_v2', provider: 'npa' },
-  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_v3', provider: 'npa' },
-  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_voice', provider: 'npa' },
+  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
+  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
+  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
+  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_trau', provider: 'npa' },
+  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_call', provider: 'npa' },
   'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
   'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
 
@@ -434,7 +434,6 @@ bot.on('callback_query', async (query) => {
           return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.message || resData.msg || 'Hết số'}`);
         }
       } else if (provider === 'npa') {
-        // Chuẩn API NPA theo tài liệu: POST /api/v1/get_number với {"server": "<id>"} và Header Authorization Bearer
         const apiUrl = `https://otpapi.cmsnpa.com/api/v1/get_number`;
         const apiResponse = await axios.post(apiUrl, { server: serviceId }, {
           headers: {
@@ -479,7 +478,6 @@ bot.on('callback_query', async (query) => {
             otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
             if (otpCode === 'is_coming') otpCode = null;
           } else if (provider === 'npa') {
-            // Chuẩn API NPA theo tài liệu: POST /api/v1/check_code với {"id": "<Id>"}
             const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId.toString() }, {
               headers: {
                 'Authorization': `Bearer ${API_KEY_NPA}`,
@@ -532,7 +530,7 @@ bot.on('callback_query', async (query) => {
             {
               parse_mode: 'Markdown',
               reply_markup: {
-                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]
+                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
               }
             }
           ).catch(() => {});
