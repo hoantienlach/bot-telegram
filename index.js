@@ -165,7 +165,7 @@ function sendMainMenu(chatId, userId) {
   let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
                  `💰 Số dư ví: ${userBalance}đ\n\n` +
-                 `👉 *Mẹo:* Bạn có thể dán trực tiếp chuỗi 2FA hoặc mã Secret vào đây bất cứ lúc nào để lấy mã nhanh!`;
+                 `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
   if (userId === ADMIN_ID) {
     menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
@@ -237,7 +237,7 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
 });
 
-// TỰ ĐỘNG TẠO MÃ 2FA KHI NGƯỜI DÙNG DÁN CHUỖI VÀO KHUNG CHAT
+// TỰ ĐỘNG LẤY 2FA KHI DÁN TRỰC TIẾP
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -269,7 +269,7 @@ bot.on('message', async (msg) => {
       { parse_mode: 'Markdown' }
     );
   } catch (err) {
-    // Nếu nội dung dán vào không phải secret key 2FA thì bỏ qua không báo lỗi
+    // Bỏ qua nếu tin nhắn gửi vào không phải secret key 2FA hợp lệ
   }
 });
 
@@ -295,7 +295,7 @@ bot.on('callback_query', async (query) => {
     let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                    `👤 ID của bạn: \`${userId}\`\n` +
                    `💰 Số dư ví: ${userBalance}đ\n\n` +
-                   `👉 *Mẹo:* Bạn có thể dán trực tiếp chuỗi 2FA hoặc mã Secret vào đây bất cứ lúc nào để lấy mã nhanh!`;
+                   `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
     if (userId === ADMIN_ID) menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
 
@@ -498,10 +498,21 @@ bot.on('callback_query', async (query) => {
         }
       }, 5000);
 
+      // XỬ LÝ KHI HẾT 5 PHÚT
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
+
+        // Tự động gọi API hủy số trực tiếp trên web GmailOTP
+        if (provider === 'gmailotp' && reqId && reqId !== 'N/A') {
+          try {
+            await axios.get(`https://gmailotp.site/api?action=cancel_number&key=${API_KEY_GMAILOTP}&id=${reqId}`);
+            console.log(`[GmailOTP] Đã tự động gửi lệnh hủy số cho đơn: ${reqId}`);
+          } catch (err) {
+            console.error(`[GmailOTP] Lỗi gửi lệnh hủy đơn ${reqId}:`, err.message);
+          }
+        }
 
         let currentDb = loadUsers();
         if (currentDb[userId]) {
@@ -510,7 +521,7 @@ bot.on('callback_query', async (query) => {
 
           bot.sendMessage(
             chatId,
-            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ**.`,
+            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hủy và hoàn tiền **${price.toLocaleString()}đ**.`,
             {
               parse_mode: 'Markdown',
               reply_markup: {
