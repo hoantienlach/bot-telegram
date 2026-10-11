@@ -8,10 +8,12 @@ app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
 
-// WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY / CASSO
+// WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY (TPBANK)
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
+    console.log('👉 Nhận Webhook SePay:', data);
+
     const content = (data.content || data.description || '').toLowerCase();
     const transferAmount = parseInt(data.transferAmount || data.amount || 0, 10);
 
@@ -259,13 +261,14 @@ async function createAndSendQR(chatId, userId, amount) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MB';
-  const accountNo = '2999130408';
+  // CẬP NHẬT THÔNG TIN TPBANK MỚI
+  const bankId = 'TPB';
+  const accountNo = '10005968827';
   const accountName = 'DINH CONG HOAT';
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
-  const caption = `💰 **THÔNG TIN CHUYỂN KHOẢN**\n\n` +
-                  `🏛️ Ngân hàng: **MB Bank**\n` +
+  const caption = `💰 **THÔNG TIN CHUYỂN KHOẢN (TPBANK)**\n\n` +
+                  `🏛️ Ngân hàng: **TPBank**\n` +
                   `💳 Số tài khoản: \`${accountNo}\`\n` +
                   `👤 Chủ tài khoản: **${accountName}**\n` +
                   `💵 Số tiền: **${amount.toLocaleString()}đ**\n` +
@@ -475,7 +478,6 @@ bot.on('callback_query', async (query) => {
     const provider = serviceInfo.provider;
     const isAdmin = (userId === ADMIN_ID);
 
-    // BỎ QUA KIỂM TRA SỐ DƯ NẾU LÀ ADMIN
     if (!isAdmin && user.balance < price) {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
@@ -507,7 +509,6 @@ bot.on('callback_query', async (query) => {
         }
       }
 
-      // CHỈ TRỪ TIỀN NẾU KHÔNG PHẢI ADMIN
       let updatedUser = user;
       if (!isAdmin) {
         updatedUser = await User.findOneAndUpdate(
@@ -568,7 +569,6 @@ bot.on('callback_query', async (query) => {
           axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY_GMAILOTP}&id=${reqId}`).catch(() => {});
         }
 
-        // CHỈ HOÀN TIỀN CHO TÀI KHOẢN THƯỜNG
         if (!isAdmin) {
           await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           bot.sendMessage(chatId, `⏰ Hết 5 phút! Đơn hàng đã được hoàn tiền **${price.toLocaleString()}đ** vào ví.`, {
