@@ -17,12 +17,10 @@ app.post('/webhook/sepay', async (req, res) => {
     const content = (data.content || data.description || '').toLowerCase();
     const transferAmount = parseInt(data.transferAmount || data.amount || 0, 10);
 
-    // Tìm đơn nạp đang chờ (khớp theo số tiền và chứa nội dung ngẫu nhiên)
     const pendingDeposit = await Deposit.findOne({
       amount: transferAmount,
       status: 'pending',
-      $expr: {
-        $setIsSubset: [
+      $expr: {$setIsSubset: [
           { $split: ["$content", " "] },
           { $split: [content, " "] }
         ]
@@ -64,14 +62,12 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const { authenticator } = require('otplib');
 
-// KẾT NỐI MONGODB ATLAS
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://hoantienlach_db_user:hoantienlach@cluster0.lruwdot.mongodb.net/?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Đã kết nối thành công tới MongoDB Atlas!'))
   .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err.message));
 
-// MODEL LƯU TÀI KHOẢN NGƯỜI DÙNG
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
@@ -79,14 +75,13 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// MODEL QUẢN LÝ ĐƠN NẠP TIỀN CHỜ KHỚP
 const depositSchema = new mongoose.Schema({
   orderId: { type: String, required: true, unique: true },
   userId: { type: String, required: true },
   amount: { type: Number, required: true },
   content: { type: String, required: true },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 300 } // Tự hủy sau 5 phút
+  createdAt: { type: Date, default: Date.now, expires: 300 }
 });
 const Deposit = mongoose.model('Deposit', depositSchema);
 
@@ -101,7 +96,6 @@ async function getUser(userId) {
 const token = process.env.BOT_TOKEN || '8151870148:AAEKTEEl-lmMBserauL0mr_A2rLoky98qxM';
 const bot = new TelegramBot(token, { polling: true });
 
-// API KEY
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
@@ -122,7 +116,6 @@ async function checkUserMembership(userId) {
   }
 }
 
-// Từ điển ngẫu nhiên sinh nội dung chuyển khoản
 const verbs = ["banh", "mua", "an", "uong", "chuyen", "gui", "nap", "tra"];
 const nouns = ["cho", "ga", "vit", "xe", "nha", "tien", "qua", "com"];
 const adjectives = ["dao", "na", "tao", "oi", "me", "xoai", "dua", "mit"];
@@ -218,11 +211,11 @@ async function sendMainMenu(chatId, userId) {
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
-        [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
+        [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }], // Đưa Thuê TikTok lên đầu
         [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
-        [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
         [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
         [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
+        [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }], // Đưa Nạp tiền tự động xuống cuối
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -261,7 +254,6 @@ async function createAndSendQR(chatId, userId, amount) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  // CẬP NHẬT THÔNG TIN TPBANK MỚI
   const bankId = 'TPB';
   const accountNo = '10005968827';
   const accountName = 'DINH CONG HOAT';
@@ -383,11 +375,11 @@ bot.on('callback_query', async (query) => {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
-          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
           [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
           [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
           [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
+          [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
           [
             { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
             { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
