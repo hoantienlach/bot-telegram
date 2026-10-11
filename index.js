@@ -39,7 +39,7 @@ function saveUsers(data) {
   }
 }
 
-const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqdHMhjmc';
+const token = process.env.BOT_TOKEN || '8151870148:AAEKTEEl-lmMBserauL0mr_A2rLoky98qxM';
 const bot = new TelegramBot(token, { polling: true });
 
 // API KEY
