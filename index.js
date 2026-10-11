@@ -50,6 +50,42 @@ const ADMIN_ID = '5426720868';
 // Username nhóm Telegram
 const REQUIRED_GROUP = '@htlach';
 
+// Biến lưu ID dịch vụ động của NPA
+let npaServiceIds = {
+  shopee_ga: 'shopee_ga',
+  shopee_bo: 'shopee_bo',
+  shopee_trau: 'shopee_trau',
+  shopee_call: 'shopee_call',
+  grab: 'dyn_227006400d',
+  lotteria: 'lotteria',
+  katinat: 'katinat'
+};
+
+// Hàm tự động fetch danh sách Service ID thực tế từ NPA
+async function updateNpaServiceIds() {
+  try {
+    const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
+    if (res.data && res.data.services && Array.isArray(res.data.services)) {
+      res.data.services.forEach(srv => {
+        const label = (srv.label || '').toLowerCase();
+        if (label.includes('shopee gà') || label.includes('shopee ga')) npaServiceIds.shopee_ga = srv.id;
+        else if (label.includes('shopee bò') || label.includes('shopee bo')) npaServiceIds.shopee_bo = srv.id;
+        else if (label.includes('shopee trâu') || label.includes('shopee trau')) npaServiceIds.shopee_trau = srv.id;
+        else if (label.includes('shopee call')) npaServiceIds.shopee_call = srv.id;
+        else if (label.includes('grab')) npaServiceIds.grab = srv.id;
+        else if (label.includes('lotteria')) npaServiceIds.lotteria = srv.id;
+        else if (label.includes('katinat')) npaServiceIds.katinat = srv.id;
+      });
+      console.log('✅ Đã cập nhật ID NPA động thành công:', npaServiceIds);
+    }
+  } catch (err) {
+    console.error('❌ Lỗi khi tải danh sách ID dịch vụ từ NPA:', err.message);
+  }
+}
+
+// Lấy ID khi vừa bật bot
+updateNpaServiceIds();
+
 bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
   { command: 'nap', description: 'Admin: Nạp tiền (/nap ID Số_tiền)' },
@@ -78,34 +114,32 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Map ID dịch vụ chuẩn NPA & GmailOTP
-const SERVICE_MAPPING = {
-  // --- SHOPEE ---
-  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
-  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
-  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
-  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_trau', provider: 'npa' },
-  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_call', provider: 'npa' },
-  'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
-  'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
+// Map key với cấu hình
+function getServiceInfo(action) {
+  const map = {
+    'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
+    'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
+    'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
+    'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
+    'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
+    'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
 
-  // --- TIKTOK ---
-  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272', provider: 'gmailotp' },
-  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194', provider: 'gmailotp' },
-  'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244', provider: 'gmailotp' },
-  'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404', provider: 'gmailotp' },
-  'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145', provider: 'gmailotp' },
-  'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421', provider: 'gmailotp' },
-  'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429', provider: 'gmailotp' },
-  'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430', provider: 'gmailotp' },
+    'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272', provider: 'gmailotp' },
+    'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194', provider: 'gmailotp' },
+    'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244', provider: 'gmailotp' },
+    'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404', provider: 'gmailotp' },
+    'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145', provider: 'gmailotp' },
+    'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421', provider: 'gmailotp' },
+    'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429', provider: 'gmailotp' },
+    'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430', provider: 'gmailotp' },
 
-  // --- GRAB ---
-  'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: 'dyn_227006400d', provider: 'npa' },
-
-  // --- THUÊ SỐ KHÁC ---
-  'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria', provider: 'npa' },
-  'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat', provider: 'npa' }
-};
+    'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' },
+    'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: npaServiceIds.lotteria, provider: 'npa' },
+    'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: npaServiceIds.katinat, provider: 'npa' }
+  };
+  return map[action];
+}
 
 function sendJoinGroupPrompt(chatId) {
   bot.sendMessage(
@@ -406,7 +440,7 @@ bot.on('callback_query', async (query) => {
 
   // Xử lý lấy số
   if (action.startsWith('rent_')) {
-    const serviceInfo = SERVICE_MAPPING[action];
+    const serviceInfo = getServiceInfo(action);
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
