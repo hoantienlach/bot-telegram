@@ -248,7 +248,7 @@ async function sendMainMenu(chatId, userId) {
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-          { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+          { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
         ]
       ]
     }
@@ -469,7 +469,7 @@ bot.on('callback_query', async (query) => {
             [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
             [
               { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-              { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+              { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
             ]
           ]
         }
@@ -488,7 +488,7 @@ bot.on('callback_query', async (query) => {
           [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
           [
             { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-            { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+            { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
           ]
         ]
       }
@@ -561,10 +561,6 @@ bot.on('callback_query', async (query) => {
     const bal = (user.balance || 0).toLocaleString();
     const dep = (user.total_deposited || 0).toLocaleString();
     return bot.answerCallbackQuery(query.id, { text: `💰 Số dư ví: ${bal}đ | 💳 Tổng nạp: ${dep}đ`, show_alert: true });
-  }
-
-  if (action === 'support_admin') {
-    return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
   if (action.startsWith('rent_')) {
