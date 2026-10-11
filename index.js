@@ -16,7 +16,6 @@ const fs = require('fs');
 const { authenticator } = require('otplib');
 
 const USERS_FILE = './users.json';
-const userStates = {};
 
 function loadUsers() {
   try {
@@ -61,7 +60,7 @@ let npaServiceIds = {
   katinat: 'katinat'
 };
 
-// Hàm tự động fetch danh sách Service ID thực tế từ NPA
+// Cập nhật Service ID từ NPA
 async function updateNpaServiceIds() {
   try {
     const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
@@ -76,45 +75,40 @@ async function updateNpaServiceIds() {
         else if (label.includes('lotteria')) npaServiceIds.lotteria = srv.id;
         else if (label.includes('katinat')) npaServiceIds.katinat = srv.id;
       });
-      console.log('✅ Đã cập nhật ID NPA động thành công:', npaServiceIds);
+      console.log('✅ Đã cập nhật ID NPA động:', npaServiceIds);
     }
   } catch (err) {
-    console.error('❌ Lỗi khi tải danh sách ID dịch vụ từ NPA:', err.message);
+    console.error('❌ Lỗi tải ID NPA:', err.message);
   }
 }
 
-// Lấy ID khi vừa bật bot
 updateNpaServiceIds();
 
 bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
   { command: 'nap', description: 'Admin: Nạp tiền (/nap ID Số_tiền)' },
   { command: 'check', description: 'Admin: Kiểm tra số dư (/check ID)' },
-  { command: 'stats', description: 'Admin: Thống kê số lượng thành viên' },
-  { command: 'broadcast', description: 'Admin: Gửi thông báo toàn hệ thống' }
+  { command: 'stats', description: 'Admin: Thống kê số lượng thành viên' }
 ]).then(() => {
-  console.log('Đã cập nhật danh sách lệnh Telegram thành công!');
+  console.log('Đã cập nhật lệnh Telegram thành công!');
 }).catch(err => {
-  console.error('Lỗi thiết lập danh sách lệnh:', err.message);
+  console.error('Lỗi thiết lập lệnh:', err.message);
 });
 
-// Hàm kiểm tra thành viên group
+// Kiểm tra thành viên group
 async function checkUserInGroup(userId) {
   if (userId === ADMIN_ID) return true;
   try {
     const chatMember = await bot.getChatMember(REQUIRED_GROUP, userId);
     const status = chatMember.status;
-    if (['creator', 'administrator', 'member'].includes(status)) {
-      return true;
-    }
-    return false;
+    return ['creator', 'administrator', 'member'].includes(status);
   } catch (err) {
     console.error('Lỗi kiểm tra group:', err.message);
     return false;
   }
 }
 
-// Map key với cấu hình
+// Map dịch vụ
 function getServiceInfo(action) {
   const map = {
     'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
@@ -170,7 +164,8 @@ function sendMainMenu(chatId, userId) {
 
   let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
-                 `💰 Số dư ví: ${userBalance}đ`;
+                 `💰 Số dư ví: ${userBalance}đ\n\n` +
+                 `👉 *Mẹo:* Bạn có thể dán trực tiếp chuỗi 2FA hoặc mã Secret vào đây bất cứ lúc nào để lấy mã nhanh!`;
 
   if (userId === ADMIN_ID) {
     menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
@@ -184,7 +179,6 @@ function sendMainMenu(chatId, userId) {
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
         [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
         [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
-        [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -197,7 +191,6 @@ function sendMainMenu(chatId, userId) {
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
-  userStates[userId] = null;
 
   const isJoined = await checkUserInGroup(userId);
   if (!isJoined) {
@@ -244,7 +237,7 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
 });
 
-// Xử lý 2FA
+// TỰ ĐỘNG TẠO MÃ 2FA KHI NGƯỜI DÙNG DÁN CHUỖI VÀO KHUNG CHAT
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -257,50 +250,26 @@ bot.on('message', async (msg) => {
     return sendJoinGroupPrompt(chatId);
   }
 
-  if (userStates[userId] === 'waiting_for_2fa') {
-    userStates[userId] = null;
+  let cleanSecret = '';
+  if (text.includes('|')) {
+    const parts = text.split('|');
+    cleanSecret = parts[parts.length - 1].trim().toUpperCase();
+  } else {
+    cleanSecret = text.replace(/\s+/g, '').toUpperCase();
+  }
 
-    let cleanSecret = '';
-    if (text.includes('|')) {
-      const parts = text.split('|');
-      cleanSecret = parts[parts.length - 1].trim().toUpperCase();
-    } else {
-      cleanSecret = text.replace(/\s+/g, '').toUpperCase();
-    }
+  try {
+    const token2fa = authenticator.generate(cleanSecret);
 
-    try {
-      const token2fa = authenticator.generate(cleanSecret);
-
-      bot.sendMessage(
-        chatId,
-        `🔐 **MÃ 2FA THÀNH CÔNG!**\n\n` +
-        `🔑 **Secret trích xuất:** \`${cleanSecret}\`\n` +
-        `✅ **Mã 2FA hiện tại:** \`${token2fa}\``,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🔄 Lấy mã khác', callback_data: 'get_2fa_menu' }],
-              [{ text: '🏠 Về menu chính', callback_data: 'back_main' }]
-            ]
-          }
-        }
-      );
-    } catch (err) {
-      bot.sendMessage(
-        chatId,
-        `❌ **Không thể tạo mã 2FA từ đoạn dữ liệu này!**\nVui lòng kiểm tra lại cấu trúc chuỗi và thử lại.`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '🔄 Thử lại', callback_data: 'get_2fa_menu' }],
-              [{ text: '🏠 Về menu chính', callback_data: 'back_main' }]
-            ]
-          }
-        }
-      );
-    }
+    bot.sendMessage(
+      chatId,
+      `🔐 **MÃ 2FA CỦA BẠN:**\n\n` +
+      `🔑 Secret: \`${cleanSecret}\`\n` +
+      `✅ Mã OTP: \`${token2fa}\``,
+      { parse_mode: 'Markdown' }
+    );
+  } catch (err) {
+    // Nếu nội dung dán vào không phải secret key 2FA thì bỏ qua không báo lỗi
   }
 });
 
@@ -320,13 +289,13 @@ bot.on('callback_query', async (query) => {
   if (!db[userId]) db[userId] = { balance: 12000 };
 
   if (action === 'rent_more' || action === 'back_main') {
-    userStates[userId] = null;
     const userBalance = db[userId].balance.toLocaleString();
     const totalUsers = Object.keys(db).length;
 
     let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                    `👤 ID của bạn: \`${userId}\`\n` +
-                   `💰 Số dư ví: ${userBalance}đ`;
+                   `💰 Số dư ví: ${userBalance}đ\n\n` +
+                   `👉 *Mẹo:* Bạn có thể dán trực tiếp chuỗi 2FA hoặc mã Secret vào đây bất cứ lúc nào để lấy mã nhanh!`;
 
     if (userId === ADMIN_ID) menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
 
@@ -340,7 +309,6 @@ bot.on('callback_query', async (query) => {
           [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
           [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
           [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
-          [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
           [
             { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
             { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -348,24 +316,6 @@ bot.on('callback_query', async (query) => {
         ]
       }
     });
-  }
-
-  if (action === 'get_2fa_menu') {
-    userStates[userId] = 'waiting_for_2fa';
-    return bot.editMessageText(
-      `🔐 **HỆ THỐNG LẤY MÃ 2FA**\n\n` +
-      `Bạn có thể dán nguyên cụm (Ví dụ: \`mail|pass|secret_key\`) hoặc dán riêng mã Secret Key vào khung chat. Bot sẽ tự động lọc lấy phần key để tạo mã!`,
-      {
-        chat_id: chatId,
-        message_id: messageId,
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
-          ]
-        }
-      }
-    );
   }
 
   if (action === 'menu_shopee') {
@@ -438,7 +388,7 @@ bot.on('callback_query', async (query) => {
     return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
-  // Xử lý lấy số
+  // Thuê số
   if (action.startsWith('rent_')) {
     const serviceInfo = getServiceInfo(action);
     if (!serviceInfo) return;
