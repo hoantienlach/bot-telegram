@@ -162,7 +162,7 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // Bắt lệnh /start hoặc /menu trực tiếp tại đây để không bao giờ bị kẹt
+  // Bắt trọn vẹn cả /start và /menu để phản hồi ngay lập tức
   if (text.startsWith('/start') || text.startsWith('/menu')) {
     return sendMainMenu(chatId, userId);
   }
