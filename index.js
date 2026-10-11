@@ -187,18 +187,6 @@ function sendMainMenu(chatId, userId) {
   });
 }
 
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
-  const isJoined = await checkUserInGroup(userId);
-  if (!isJoined) {
-    return sendJoinGroupPrompt(chatId);
-  }
-
-  sendMainMenu(chatId, userId);
-});
-
 bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -264,12 +252,19 @@ bot.on('message', async (msg) => {
   const userId = msg.from.id.toString();
   const text = msg.text;
 
-  if (!text || text.startsWith('/')) return;
+  if (!text) return;
 
   const isJoined = await checkUserInGroup(userId);
   if (!isJoined) {
     return sendJoinGroupPrompt(chatId);
   }
+
+  // Xử lý lệnh /start hoặc /menu trực tiếp ở đây để tránh bị kẹt
+  if (text.startsWith('/start') || text.startsWith('/menu')) {
+    return sendMainMenu(chatId, userId);
+  }
+
+  if (text.startsWith('/')) return;
 
   let cleanSecret = '';
   if (text.includes('|')) {
