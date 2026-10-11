@@ -109,15 +109,8 @@ bot.setMyCommands([
 });
 
 async function checkUserInGroup(userId) {
-  if (userId === ADMIN_ID) return true;
-  try {
-    const chatMember = await bot.getChatMember(REQUIRED_GROUP, userId);
-    const status = chatMember.status;
-    return ['creator', 'administrator', 'member'].includes(status);
-  } catch (err) {
-    console.error('❌ Lỗi kiểm tra group chi tiết:', err.response ? err.response.body : err.message);
-    return true; // Tạm thời bypass qua để bot không bị kẹt khi test
-  }
+  // Cho phép tất cả người dùng qua bước kiểm tra nhóm để tránh bị kẹt lệnh /start
+  return true;
 }
 
 function getServiceInfo(action) {
