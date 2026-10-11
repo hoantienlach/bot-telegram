@@ -9,17 +9,9 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server HTTP đang chạy trên cổng ${PORT}`);
 });
-
 const mongoose = require('mongoose');
 
-// Hỗ trợ cả MONGO_URI và MONGODB_URI để tránh lỗi undefined
-const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
-
-if (!mongoUri) {
-  console.error('❌ Lỗi: Chưa cấu hình biến môi trường MONGO_URI trên Render!');
-}
-
-mongoose.connect(mongoUri, {
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
@@ -29,28 +21,33 @@ mongoose.connect(mongoUri, {
 .catch((err) => {
   console.error('❌ Lỗi kết nối MongoDB:', err);
 });
-
-// Định nghĩa Schema và Model User cho MongoDB
-const userSchema = new mongoose.Schema({
-  telegramId: { type: String, required: true, unique: true },
-  balance: { type: Number, default: 0 },
-  total_deposited: { type: Number, default: 0 }
-});
-const User = mongoose.model('User', userSchema);
-
-// Hàm hỗ trợ lấy hoặc tạo user trên MongoDB
-async function getUser(userId) {
-  let user = await User.findOne({ telegramId: userId.toString() });
-  if (!user) {
-    user = new User({ telegramId: userId.toString(), balance: 0, total_deposited: 0 });
-    await user.save();
-  }
-  return user;
-}
-
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
+const fs = require('fs');
 const { authenticator } = require('otplib');
+
+const USERS_FILE = './users.json';
+
+function loadUsers() {
+  try {
+    if (!fs.existsSync(USERS_FILE)) {
+      fs.writeFileSync(USERS_FILE, JSON.stringify({}));
+    }
+    const data = fs.readFileSync(USERS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error('Lỗi khi đọc file users.json:', err);
+    return {};
+  }
+}
+
+function saveUsers(data) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('Lỗi khi ghi file users.json:', err);
+  }
+}
 
 const token = process.env.BOT_TOKEN || '8151870148:AAEKTEEl-lmMBserauL0mr_A2rLoky98qxM';
 const bot = new TelegramBot(token, { polling: true });
@@ -115,8 +112,8 @@ async function checkUserInGroup(userId) {
     const status = chatMember.status;
     return ['creator', 'administrator', 'member'].includes(status);
   } catch (err) {
-    console.error('❌ Lỗi kiểm tra group chi tiết:', err.response ? err.response.body : err.message);
-    return true; 
+    console.error('Lỗi kiểm tra group:', err.message);
+    return false;
   }
 }
 
@@ -163,12 +160,16 @@ function sendJoinGroupPrompt(chatId) {
   );
 }
 
-async function sendMainMenu(chatId, userId) {
-  const user = await getUser(userId);
+function sendMainMenu(chatId, userId) {
+  let db = loadUsers();
+  if (!db[userId]) {
+    db[userId] = { balance: 0, total_deposited: 0 };
+    saveUsers(db);
+  }
 
-  const userBalance = (user.balance || 0).toLocaleString();
-  const userDeposited = (user.total_deposited || 0).toLocaleString();
-  const totalUsers = await User.countDocuments();
+  const userBalance = (db[userId].balance || 0).toLocaleString();
+  const userDeposited = (db[userId].total_deposited || 0).toLocaleString();
+  const totalUsers = Object.keys(db).length;
 
   let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
@@ -206,11 +207,10 @@ bot.onText(/\/start/, async (msg) => {
     return sendJoinGroupPrompt(chatId);
   }
 
-  await getUser(userId);
   sendMainMenu(chatId, userId);
 });
 
-bot.onText(/\/nap (\d+) (\d+)/, async (msg, match) => {
+bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
 
@@ -219,32 +219,30 @@ bot.onText(/\/nap (\d+) (\d+)/, async (msg, match) => {
   const targetUserId = match[1];
   const amount = parseInt(match[2], 10);
 
-  let user = await User.findOne({ telegramId: targetUserId });
-  if (!user) {
-    user = new User({ telegramId: targetUserId, balance: 0, total_deposited: 0 });
-  }
+  let db = loadUsers();
+  if (!db[targetUserId]) db[targetUserId] = { balance: 0, total_deposited: 0 };
 
-  user.balance = (user.balance || 0) + amount;
-  user.total_deposited = (user.total_deposited || 0) + amount;
-  await user.save();
+  db[targetUserId].balance = (db[targetUserId].balance || 0) + amount;
+  db[targetUserId].total_deposited = (db[targetUserId].total_deposited || 0) + amount;
+  saveUsers(db);
 
-  const newBalance = user.balance.toLocaleString();
-  const totalDep = user.total_deposited.toLocaleString();
+  const newBalance = db[targetUserId].balance.toLocaleString();
+  const totalDep = db[targetUserId].total_deposited.toLocaleString();
 
   bot.sendMessage(chatId, `✅ Đã nạp **+${amount.toLocaleString()}đ** cho user \`${targetUserId}\`.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' });
   bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' }).catch(() => {});
 });
 
-bot.onText(/\/stats/, async (msg) => {
+bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   if (msg.from.id.toString() !== ADMIN_ID) return;
-
-  const users = await User.find({});
-  const totalUsers = users.length;
+  const db = loadUsers();
+  
+  const totalUsers = Object.keys(db).length;
   let totalDepositedAll = 0;
   let totalBalanceAll = 0;
 
-  users.forEach(user => {
+  Object.values(db).forEach(user => {
     totalDepositedAll += (user.total_deposited || 0);
     totalBalanceAll += (user.balance || 0);
   });
@@ -259,16 +257,15 @@ bot.onText(/\/stats/, async (msg) => {
   );
 });
 
-bot.onText(/\/check (\d+)/, async (msg, match) => {
+bot.onText(/\/check (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   if (msg.from.id.toString() !== ADMIN_ID) return;
+  const db = loadUsers();
   const targetId = match[1];
-
-  const user = await User.findOne({ telegramId: targetId });
-  if (!user) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
+  if (!db[targetId]) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
   
-  const bal = (user.balance || 0).toLocaleString();
-  const dep = (user.total_deposited || 0).toLocaleString();
+  const bal = (db[targetId].balance || 0).toLocaleString();
+  const dep = (db[targetId].total_deposited || 0).toLocaleString();
 
   bot.sendMessage(chatId, `🔍 User \`${targetId}\`:\n💰 Số dư ví: **${bal}đ**\n💳 Tổng đã nạp: **${dep}đ**`, { parse_mode: 'Markdown' });
 });
@@ -330,12 +327,13 @@ bot.on('callback_query', async (query) => {
     return sendJoinGroupPrompt(chatId);
   }
 
-  const user = await getUser(userId);
+  let db = loadUsers();
+  if (!db[userId]) db[userId] = { balance: 0, total_deposited: 0 };
 
   if (action === 'rent_more' || action === 'back_main') {
-    const userBalance = (user.balance || 0).toLocaleString();
-    const userDeposited = (user.total_deposited || 0).toLocaleString();
-    const totalUsers = await User.countDocuments();
+    const userBalance = (db[userId].balance || 0).toLocaleString();
+    const userDeposited = (db[userId].total_deposited || 0).toLocaleString();
+    const totalUsers = Object.keys(db).length;
 
     let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                    `👤 ID của bạn: \`${userId}\`\n` +
@@ -427,8 +425,8 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'check_balance') {
-    const bal = (user.balance || 0).toLocaleString();
-    const dep = (user.total_deposited || 0).toLocaleString();
+    const bal = (db[userId].balance || 0).toLocaleString();
+    const dep = (db[userId].total_deposited || 0).toLocaleString();
     return bot.answerCallbackQuery(query.id, { text: `💰 Số dư ví: ${bal}đ | 💳 Tổng nạp: ${dep}đ`, show_alert: true });
   }
 
@@ -444,7 +442,7 @@ bot.on('callback_query', async (query) => {
     const serviceId = serviceInfo.service_id;
     const provider = serviceInfo.provider;
 
-    if (user.balance < price) {
+    if (db[userId].balance < price) {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
@@ -482,8 +480,8 @@ bot.on('callback_query', async (query) => {
         }
       }
 
-      user.balance -= price;
-      await user.save();
+      db[userId].balance -= price;
+      saveUsers(db);
 
       await bot.sendMessage(
         chatId,
@@ -491,7 +489,7 @@ bot.on('callback_query', async (query) => {
         `🌐 **Dịch vụ:** ${countryLabel}\n` +
         `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
         `🆔 **Mã đơn:** \`${reqId}\`\n` +
-        `💰 **Số dư còn lại:** ${user.balance.toLocaleString()}đ\n\n` +
+        `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
         `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
         { parse_mode: 'Markdown' }
       );
@@ -554,10 +552,10 @@ bot.on('callback_query', async (query) => {
           forceCancelGmailOtp(reqId, 5);
         }
 
-        let currentUser = await User.findOne({ telegramId: userId.toString() });
-        if (currentUser) {
-          currentUser.balance += price;
-          await currentUser.save();
+        let currentDb = loadUsers();
+        if (currentDb[userId]) {
+          currentDb[userId].balance += price;
+          saveUsers(currentDb);
 
           bot.sendMessage(
             chatId,
