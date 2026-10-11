@@ -172,7 +172,7 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  if (text.startsWith('/start') || text === '/start') {
+  if (text.startsWith('/start') || text.startsWith('/menu')) {
     await getUser(userId);
     return sendMainMenu(chatId, userId);
   }
