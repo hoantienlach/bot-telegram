@@ -12,7 +12,14 @@ app.listen(PORT, () => {
 
 const mongoose = require('mongoose');
 
-mongoose.connect(process.env.MONGO_URI, {
+// Hỗ trợ cả MONGO_URI và MONGODB_URI để tránh lỗi undefined
+const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+if (!mongoUri) {
+  console.error('❌ Lỗi: Chưa cấu hình biến môi trường MONGO_URI trên Render!');
+}
+
+mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
@@ -199,7 +206,7 @@ bot.onText(/\/start/, async (msg) => {
     return sendJoinGroupPrompt(chatId);
   }
 
-  await getUser(userId); // Đảm bảo user tồn tại trong MongoDB
+  await getUser(userId);
   sendMainMenu(chatId, userId);
 });
 
