@@ -104,6 +104,21 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
+// HỆ THỐNG CHỐNG SPAM (Lưu thời gian thao tác gần nhất của từng User)
+const cooldowns = new Map();
+const COOLDOWN_TIME = 3000; // 3 giây
+
+function checkSpam(userId) {
+  if (userId.toString() === ADMIN_ID) return false; // Admin được bỏ qua chống spam
+  const now = Date.now();
+  const lastTime = cooldowns.get(userId) || 0;
+  if (now - lastTime < COOLDOWN_TIME) {
+    return true; // Đang trong thời gian spam
+  }
+  cooldowns.set(userId, now);
+  return false;
+}
+
 async function checkUserMembership(userId) {
   if (userId.toString() === ADMIN_ID) return true;
   try {
@@ -289,6 +304,11 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
+  // Kiểm tra chống spam tin nhắn liên tục
+  if (checkSpam(userId)) {
+    return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.sendMessage(
@@ -344,6 +364,11 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
+  // Kiểm tra chống spam click nút liên tục
+  if (checkSpam(userId)) {
+    return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
+  }
+
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.answerCallbackQuery(query.id, { text: `❌ Vui lòng bấm tham gia nhóm trước!`, show_alert: true });
@@ -383,7 +408,6 @@ bot.on('callback_query', async (query) => {
                   `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
     }
 
-    // Nếu bấm từ trang QR (tin nhắn ảnh), dùng sendMessage thay vì editMessageText để không bị lỗi
     if (query.message.photo) {
       bot.deleteMessage(chatId, messageId).catch(() => {});
       return bot.sendMessage(chatId, menuText, {
