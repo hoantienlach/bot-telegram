@@ -152,7 +152,7 @@ function sendJoinGroupPrompt(chatId) {
 function sendMainMenu(chatId, userId) {
   let db = loadUsers();
   if (!db[userId]) {
-    db[userId] = { balance: 12000, total_deposited: 12000 };
+    db[userId] = { balance: 0, total_deposited: 0 };
     saveUsers(db);
   }
 
@@ -199,7 +199,6 @@ bot.onText(/\/start/, async (msg) => {
   sendMainMenu(chatId, userId);
 });
 
-// Lệnh Admin Nạp Tiền
 bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -223,7 +222,6 @@ bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**.\n💰 Số dư mới: ${newBalance}đ\n💳 Tổng đã nạp: ${totalDep}đ`, { parse_mode: 'Markdown' }).catch(() => {});
 });
 
-// Lệnh Admin Thống Kê Tổng Thống Kê Hệ Thống
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   if (msg.from.id.toString() !== ADMIN_ID) return;
@@ -319,7 +317,7 @@ bot.on('callback_query', async (query) => {
   }
 
   let db = loadUsers();
-  if (!db[userId]) db[userId] = { balance: 12000, total_deposited: 12000 };
+  if (!db[userId]) db[userId] = { balance: 0, total_deposited: 0 };
 
   if (action === 'rent_more' || action === 'back_main') {
     const userBalance = (db[userId].balance || 0).toLocaleString();
