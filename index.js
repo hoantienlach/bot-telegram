@@ -267,6 +267,7 @@ bot.on('message', async (msg) => {
   } catch (err) {}
 });
 
+// Hàm ngầm gọi API hủy số đối tác mà không hiển thị ra cho khách
 async function forceCancelGmailOtp(reqId, maxAttempts = 5) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -503,11 +504,13 @@ bot.on('callback_query', async (query) => {
         }
       }, 5000);
 
+      // ĐÚNG TRÒN 5 PHÚT HẾT GIỜ TỰ ĐỘNG HOÀN TIỀN VÀ ÂM THẦM HỦY SỐ BÊN ĐỐI TÁC
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
 
+        // Hủy số ngầm bên đối tác
         if (provider === 'gmailotp' && reqId && reqId !== 'N/A') {
           forceCancelGmailOtp(reqId, 5);
         }
@@ -519,7 +522,7 @@ bot.on('callback_query', async (query) => {
 
           bot.sendMessage(
             chatId,
-            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được tự động hủy trên web và hoàn tiền **${price.toLocaleString()}đ** vào ví.`,
+            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ** vào ví.`,
             {
               parse_mode: 'Markdown',
               reply_markup: {
