@@ -9,18 +9,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server HTTP đang chạy trên cổng ${PORT}`);
 });
-const mongoose = require('mongoose');
-
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log('✅ Đã kết nối MongoDB thành công!');
-})
-.catch((err) => {
-  console.error('❌ Lỗi kết nối MongoDB:', err);
-});
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
