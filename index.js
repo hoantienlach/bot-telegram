@@ -106,7 +106,7 @@ const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1';
 
 // HỆ THỐNG CHỐNG SPAM
 const cooldowns = new Map();
-const COOLDOWN_TIME = 3000; // 3 giây
+const COOLDOWN_TIME = 3000;
 
 function checkSpam(userId) {
   if (userId.toString() === ADMIN_ID) return false;
@@ -171,15 +171,12 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// PHÂN QUYỀN HIỂN THỊ MENU LỆNH (THÀNH VIÊN VS ADMIN)
 async function setupBotCommands() {
   try {
-    // Menu cho thành viên thường (Chỉ có /start)
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' }
     ]);
 
-    // Menu riêng cho Admin (Thêm lệnh /nap và /sendall)
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
@@ -654,10 +651,17 @@ bot.on('callback_query', async (query) => {
             isCompleted = true;
             clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
-            bot.sendMessage(chatId, `🎉 **MÃ OTP:** \`${otpCode}\``, {
-              parse_mode: 'Markdown',
-              reply_markup: { inline_keyboard: [[{ text: '🔄 Lấy số khác', callback_data: action }]] }
-            });
+            
+            bot.sendMessage(
+              chatId,
+              `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN \`${reqId}\`**\n🔑 Mã OTP: \`${otpCode}\``,
+              {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
+                }
+              }
+            ).catch(() => {});
           }
         } catch (e) {}
       }, 5000);
@@ -666,22 +670,25 @@ bot.on('callback_query', async (query) => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
+
         if (provider === 'gmailotp' && reqId !== 'N/A') {
           axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY_GMAILOTP}&id=${reqId}`).catch(() => {});
         }
 
-        if (!isAdmin) {
-          await User.updateOne({ userId: userId }, { $inc: { balance: price } });
-          bot.sendMessage(chatId, `⏰ Hết 5 phút! Đơn hàng đã được hoàn tiền **${price.toLocaleString()}đ** vào ví.`, {
-            parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: [[{ text: '🔄 Lấy số khác', callback_data: action }]] }
-          }).catch(() => {});
+        let refundMsg = `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ** vào ví.`;
+        if (isAdmin) {
+          refundMsg = `⏰ **ĐÃ HẾT 5 PHÚT!** Đã hủy đơn hàng \`${reqId}\` (Tài khoản Admin miễn phí).`;
         } else {
-          bot.sendMessage(chatId, `⏰ Hết 5 phút! Đã hủy đơn hàng \`${reqId}\`.`, {
-            parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: [[{ text: '🔄 Lấy số khác', callback_data: action }]] }
-          }).catch(() => {});
+          await User.updateOne({ userId: userId }, { $inc: { balance: price } });
         }
+
+        bot.sendMessage(chatId, refundMsg, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
+          }
+        }).catch(() => {});
+
       }, 300 * 1000);
 
     } catch (err) {
