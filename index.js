@@ -49,7 +49,7 @@ const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
 // Kênh bắt buộc tham gia
-const REQUIRED_CHANNEL = '@htlach'; // Hoặc username nhóm/kênh của bạn
+const REQUIRED_CHANNEL = '@htlach';
 
 async function checkUserMembership(userId) {
   if (userId === ADMIN_ID) return true;
@@ -139,8 +139,6 @@ function getServiceInfo(action) {
 
 async function sendMainMenu(chatId, userId) {
   const user = await getUser(userId);
-  const totalUsers = await User.countDocuments({});
-
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
 
@@ -150,8 +148,18 @@ async function sendMainMenu(chatId, userId) {
                  `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
                  `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
+  // CHỈ ADMIN MỚI NHÌN THẤY THỐNG KÊ TỔNG CỦA HỆ THỐNG
   if (userId === ADMIN_ID) {
-    menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
+    const users = await User.find({});
+    const totalUsers = users.length;
+    let totalDepositedAll = 0;
+    users.forEach(u => {
+      totalDepositedAll += (u.total_deposited || 0);
+    });
+
+    menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
+                `👥 Tổng thành viên: **${totalUsers}** người\n` +
+                `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
   }
 
   bot.sendMessage(chatId, menuText, {
@@ -178,7 +186,6 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // Kiểm tra bắt buộc tham gia nhóm trước khi xử lý lệnh
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.sendMessage(
@@ -300,7 +307,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // Kiểm tra bắt buộc tham gia nhóm trước khi bấm nút
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.answerCallbackQuery(query.id, {
@@ -312,7 +318,6 @@ bot.on('callback_query', async (query) => {
   const user = await getUser(userId);
 
   if (action === 'rent_more' || action === 'back_main') {
-    const totalUsers = await User.countDocuments({});
     const userBalance = (user.balance || 0).toLocaleString();
     const userDeposited = (user.total_deposited || 0).toLocaleString();
 
@@ -322,7 +327,18 @@ bot.on('callback_query', async (query) => {
                    `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
                    `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
-    if (userId === ADMIN_ID) menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
+    if (userId === ADMIN_ID) {
+      const users = await User.find({});
+      const totalUsers = users.length;
+      let totalDepositedAll = 0;
+      users.forEach(u => {
+        totalDepositedAll += (u.total_deposited || 0);
+      });
+
+      menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
+                  `👥 Tổng thành viên: **${totalUsers}** người\n` +
+                  `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
+    }
 
     return bot.editMessageText(menuText, {
       chat_id: chatId,
@@ -461,7 +477,6 @@ bot.on('callback_query', async (query) => {
         }
       }
 
-      // Trừ tiền thuê số trong MongoDB
       const updatedUser = await User.findOneAndUpdate(
         { userId: userId },
         { $inc: { balance: -price } },
@@ -537,7 +552,6 @@ bot.on('callback_query', async (query) => {
           forceCancelGmailOtp(reqId, 5);
         }
 
-        // Hoàn tiền vào ví trên MongoDB
         await User.updateOne({ userId: userId }, { $inc: { balance: price } });
 
         bot.sendMessage(
