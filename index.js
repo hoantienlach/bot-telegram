@@ -267,19 +267,14 @@ bot.on('message', async (msg) => {
   } catch (err) {}
 });
 
-// Hàm hủy số dùng đúng action=cancel_phone theo tài liệu Gmailotp.site
 async function forceCancelGmailOtp(reqId, maxAttempts = 5) {
   for (let i = 0; i < maxAttempts; i++) {
     try {
       const cancelRes = await axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY_GMAILOTP}&id=${reqId}`);
-      console.log(`[GmailOTP] Thử hủy lần ${i + 1} cho đơn ${reqId}:`, cancelRes.data);
       if (cancelRes.data && (cancelRes.data.success === true || cancelRes.data.status === 'success' || cancelRes.data.msg === 'success')) {
-        console.log(`[GmailOTP] ĐÃ HỦY SỐ THÀNH CÔNG TRÊN WEB CHO ĐƠN ${reqId}`);
         break;
       }
-    } catch (err) {
-      console.error(`[GmailOTP] Lỗi gửi lệnh hủy lần ${i + 1}:`, err.message);
-    }
+    } catch (err) {}
     await new Promise(res => setTimeout(res, 5000));
   }
 }
@@ -498,7 +493,7 @@ bot.on('callback_query', async (query) => {
               {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                  inline_keyboard: [[{ text: '🔄 Thuê tiếp số này', callback_data: action }]]
+                  inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
                 }
               }
             );
@@ -508,13 +503,12 @@ bot.on('callback_query', async (query) => {
         }
       }, 5000);
 
-      // ĐÚNG TRÒN 5 PHÚT (300 GIÂY) TỰ ĐỘNG HỦY TRÊN WEB VÀ HOÀN TIỀN
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
         isCompleted = true;
         clearInterval(checkInterval);
 
-        if (provider === 'gmailotp' && reqId && reqId !== 'N/App') {
+        if (provider === 'gmailotp' && reqId && reqId !== 'N/A') {
           forceCancelGmailOtp(reqId, 5);
         }
 
@@ -529,7 +523,7 @@ bot.on('callback_query', async (query) => {
             {
               parse_mode: 'Markdown',
               reply_markup: {
-                inline_keyboard: [[{ text: '🔄 Thuê tiếp số này', callback_data: action }]]
+                inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
               }
             }
           ).catch(() => {});
