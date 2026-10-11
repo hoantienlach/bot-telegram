@@ -94,7 +94,7 @@ async function getUser(userId) {
   return user;
 }
 
-const token = process.env.BOT_TOKEN || '8151870148:AAEKTEEl-lmMBserauL0mr_A2rLoky98qxM';
+const token = process.env.BOT_TOKEN || '8151870148:AAHdqXysbRCDqOJHaBCqhpWzAXBFCnEi5cg';
 const bot = new TelegramBot(token, { polling: true });
 
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
