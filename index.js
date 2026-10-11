@@ -78,7 +78,7 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Map ID dịch vụ chuẩn API NPA & GmailOTP
+// Map ID dịch vụ chuẩn theo API NPA (Bạn có thể đổi lại id chính xác lấy từ /api/v1/services nếu cần)
 const SERVICE_MAPPING = {
   // --- SHOPEE ---
   'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee', provider: 'npa' },
@@ -103,8 +103,8 @@ const SERVICE_MAPPING = {
   'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: 'dyn_227006400d', provider: 'npa' },
 
   // --- THUÊ SỐ KHÁC ---
-  'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria_vn', provider: 'npa' },
-  'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat_vn', provider: 'npa' }
+  'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria', provider: 'npa' },
+  'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat', provider: 'npa' }
 };
 
 function sendJoinGroupPrompt(chatId) {
@@ -434,6 +434,7 @@ bot.on('callback_query', async (query) => {
           return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.message || resData.msg || 'Hết số'}`);
         }
       } else if (provider === 'npa') {
+        // Chuẩn API NPA theo tài liệu: POST /api/v1/get_number với {"server": "<id>"} và Header Authorization Bearer
         const apiUrl = `https://otpapi.cmsnpa.com/api/v1/get_number`;
         const apiResponse = await axios.post(apiUrl, { server: serviceId }, {
           headers: {
@@ -443,11 +444,11 @@ bot.on('callback_query', async (query) => {
         });
         const resData = apiResponse.data;
 
-        if (resData && (resData.ResponseCode === 0 || resData.ok === true) && resData.Result) {
+        if (resData && resData.ResponseCode === 0 && resData.Result) {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
         } else {
-          return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.Msg || resData.message || 'Tạm thời hết số hoặc ID dịch vụ chưa chính xác'}`);
+          return bot.sendMessage(chatId, `❌ **Thông báo NPA:** ${resData.Msg || 'Hết số hoặc lỗi hệ thống'}`);
         }
       }
 
@@ -478,7 +479,8 @@ bot.on('callback_query', async (query) => {
             otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
             if (otpCode === 'is_coming') otpCode = null;
           } else if (provider === 'npa') {
-            const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId }, {
+            // Chuẩn API NPA theo tài liệu: POST /api/v1/check_code với {"id": "<Id>"}
+            const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId.toString() }, {
               headers: {
                 'Authorization': `Bearer ${API_KEY_NPA}`,
                 'Content-Type': 'application/json'
@@ -530,7 +532,7 @@ bot.on('callback_query', async (query) => {
             {
               parse_mode: 'Markdown',
               reply_markup: {
-                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
+                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]
               }
             }
           ).catch(() => {});
