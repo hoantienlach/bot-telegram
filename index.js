@@ -47,8 +47,8 @@ const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
-// ID hoặc Username của Group bắt buộc gia nhập (Nếu dùng link mời dạng invite link, bạn cần lấy Chat ID số của group, ví dụ: -100xxxxxxxxxx)
-const REQUIRED_GROUP = '@hoantienlach_group'; // Thay bằng Username hoặc ID số của group Telegram của bạn
+// Username nhóm Telegram chính xác từ ảnh của bạn (t.me/htlach)
+const REQUIRED_GROUP = '@htlach';
 
 bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
@@ -68,19 +68,19 @@ async function checkUserInGroup(userId) {
   try {
     const chatMember = await bot.getChatMember(REQUIRED_GROUP, userId);
     const status = chatMember.status;
-    // Các trạng thái được coi là thành viên hợp lệ
     if (['creator', 'administrator', 'member'].includes(status)) {
       return true;
     }
     return false;
   } catch (err) {
     console.error('Lỗi kiểm tra group:', err.message);
-    return false; // Nếu bot chưa làm admin group hoặc lỗi, mặc định chặn hoặc cấu hình lại
+    return false;
   }
 }
 
 // Danh sách dịch vụ
 const SERVICE_MAPPING = {
+  // --- SHOPEE ---
   'rent_npa_shopee_ga': { name: 'Shopee Gà', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
   'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
   'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
@@ -89,6 +89,7 @@ const SERVICE_MAPPING = {
   'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
   'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
 
+  // --- TIKTOK ---
   'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272', provider: 'gmailotp' },
   'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194', provider: 'gmailotp' },
   'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244', provider: 'gmailotp' },
@@ -98,8 +99,10 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429', provider: 'gmailotp' },
   'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430', provider: 'gmailotp' },
 
+  // --- GRAB ---
   'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: 'dyn_227006400d', provider: 'npa' },
 
+  // --- THUÊ SỐ KHÁC ---
   'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: 'lotteria', provider: 'npa' },
   'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: 'katinat', provider: 'npa' }
 };
@@ -113,7 +116,7 @@ function sendJoinGroupPrompt(chatId) {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🔗 Tham gia Group ngay', url: 'https://t.me/+ThVZHCtALDEyY2Y1' }],
+          [{ text: '🔗 Tham gia Group ngay', url: 'https://t.me/htlach' }],
           [{ text: '🔄 Tôi đã tham gia (Kiểm tra lại)', callback_data: 'back_main' }]
         ]
       }
@@ -273,7 +276,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // Kiểm tra group trước mọi thao tác bấm nút
   const isJoined = await checkUserInGroup(userId);
   if (!isJoined) {
     bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn cần tham gia group trước!', show_alert: true });
