@@ -42,10 +42,11 @@ function saveUsers(data) {
 const token = process.env.BOT_TOKEN || '8916854577:AAFhqasLZhIcXgDq4onY0PJ_mIQqdHMhjmc';
 const bot = new TelegramBot(token, { polling: true });
 
-const API_KEY = '6565dd2cdb5945cea58563c10af9ca6e';
+// API KEY
+const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
+const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
-// --- ĐĂNG KÝ MENU LỆNH HIỂN THỊ KHI GÕ DẤU / ---
 bot.setMyCommands([
   { command: 'start', description: 'Mở menu thuê số & kiểm tra ví' },
   { command: 'nap', description: 'Admin: Nạp tiền (/nap ID Số_tiền)' },
@@ -58,19 +59,32 @@ bot.setMyCommands([
   console.error('Lỗi thiết lập danh sách lệnh:', err.message);
 });
 
+// Danh sách dịch vụ
 const SERVICE_MAPPING = {
-  // Shopee
-  'rent_shopee_vn5': { name: 'Shopee Việt Nam 5', price: 5000, service_id: '15461' },
-  'rent_shopee_vn8': { name: 'Shopee Việt Nam 8', price: 5000, service_id: '24901' },
-  // TikTok mới (8 dịch vụ)
-  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272' },
-  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194' },
-  'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244' },
-  'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404' },
-  'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145' },
-  'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421' },
-  'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429' },
-  'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430' }
+  // --- SHOPEE 1 -> 6 ---
+  'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
+  'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
+  'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_trau', provider: 'npa' },
+  'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: 'shopee_call', provider: 'npa' },
+  'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
+  'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
+
+  // --- TIKTOK ---
+  'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272', provider: 'gmailotp' },
+  'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194', provider: 'gmailotp' },
+  'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244', provider: 'gmailotp' },
+  'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404', provider: 'gmailotp' },
+  'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145', provider: 'gmailotp' },
+  'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421', provider: 'gmailotp' },
+  'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429', provider: 'gmailotp' },
+  'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430', provider: 'gmailotp' },
+
+  // --- GRAB ---
+  'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: 'dyn_227006400d', provider: 'npa' },
+
+  // --- KHÁC (NPA) ---
+  'rent_npa_lotteria': { name: 'Lotteria (NPA)', price: 2000, service_id: 'lotteria', provider: 'npa' },
+  'rent_npa_katinat': { name: 'Katinat (NPA)', price: 2000, service_id: 'katinat', provider: 'npa' }
 };
 
 function sendMainMenu(chatId, userId) {
@@ -97,6 +111,8 @@ function sendMainMenu(chatId, userId) {
       inline_keyboard: [
         [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+        [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
+        [{ text: '⚡ Thuê Số Khác (NPA)', callback_data: 'menu_npa' }],
         [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
@@ -151,7 +167,7 @@ bot.onText(/\/check (\d+)/, (msg, match) => {
   bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
 });
 
-// Xử lý tự động bóc tách chuỗi 2FA
+// Xử lý 2FA
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
@@ -234,6 +250,8 @@ bot.on('callback_query', async (query) => {
         inline_keyboard: [
           [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
           [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+          [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
+          [{ text: '⚡ Thuê Số Khác (NPA)', callback_data: 'menu_npa' }],
           [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
           [
             { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
@@ -262,13 +280,18 @@ bot.on('callback_query', async (query) => {
     );
   }
 
+  // Menu Shopee dạng số 1, 2, 3...
   if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ **CHỌN MÃ VÙNG SHOPEE**`, {
+    return bot.editMessageText(`🛍️ **CHỌN DỊCH VỤ SHOPEE**`, {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee VN 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
-          [{ text: '🛍️ Shopee VN 8 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
+          [{ text: '🛍️ Shopee 1 - 4.000đ', callback_data: 'rent_npa_shopee_1' }],
+          [{ text: '🛍️ Shopee 2 - 4.000đ', callback_data: 'rent_npa_shopee_2' }],
+          [{ text: '🛍️ Shopee 3 - 4.000đ', callback_data: 'rent_npa_shopee_3' }],
+          [{ text: '🛍️ Shopee 4 - 4.000đ', callback_data: 'rent_npa_shopee_4' }],
+          [{ text: '🛍️ Shopee 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
+          [{ text: '🛍️ Shopee 6 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
@@ -294,6 +317,31 @@ bot.on('callback_query', async (query) => {
     });
   }
 
+  if (action === 'menu_grab') {
+    return bot.editMessageText(`🚗 **CHỌN DỊCH VỤ GRAB**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🚗 Grab V1 - 3.000đ', callback_data: 'rent_npa_grab_v1' }],
+          [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
+  if (action === 'menu_npa') {
+    return bot.editMessageText(`⚡ **DANH SÁCH DỊCH VỤ KHÁC (NPA)**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '⚡ Lotteria - 2.000đ', callback_data: 'rent_npa_lotteria' }],
+          [{ text: '⚡ Katinat - 2.000đ', callback_data: 'rent_npa_katinat' }],
+          [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
   if (action === 'check_balance') {
     return bot.answerCallbackQuery(query.id, { text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`, show_alert: true });
   }
@@ -302,106 +350,141 @@ bot.on('callback_query', async (query) => {
     return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
+  // Xử lý thuê số
   if (action.startsWith('rent_')) {
     const serviceInfo = SERVICE_MAPPING[action];
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
     const serviceId = serviceInfo.service_id;
+    const provider = serviceInfo.provider;
 
     if (db[userId].balance < price) {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
     try {
-      const apiUrl = `https://gmailotp.site/api?action=get_number&key=${API_KEY}&id=${serviceId}`;
-      const apiResponse = await axios.get(apiUrl);
-      const resData = apiResponse.data;
+      let rawPhone = '';
+      let reqId = '';
+      let countryLabel = serviceInfo.name;
 
-      if (resData && resData.success === true) {
-        const rawPhone = resData.number || '';
-        const reqId = resData.request_id || 'N/A';
-        const countryLabel = serviceInfo.name;
+      if (provider === 'gmailotp') {
+        const apiUrl = `https://gmailotp.site/api?action=get_number&key=${API_KEY_GMAILOTP}&id=${serviceId}`;
+        const apiResponse = await axios.get(apiUrl);
+        const resData = apiResponse.data;
 
-        db[userId].balance -= price;
-        saveUsers(db);
-
-        await bot.sendMessage(
-          chatId,
-          `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
-          `🌐 **Dịch vụ:** ${countryLabel}\n` +
-          `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
-          `🆔 **Mã đơn:** \`${reqId}\`\n` +
-          `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
-          `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
-          { parse_mode: 'Markdown' }
-        );
-
-        let isCompleted = false;
-
-        const checkInterval = setInterval(async () => {
-          if (isCompleted) return;
-          try {
-            const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
-            const otpData = otpRes.data;
-            const otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
-
-            if (otpData && (otpData.success === true || otpData.status === 'success' || otpCode) && otpCode && otpCode !== 'is_coming') {
-              isCompleted = true;
-              clearInterval(checkInterval);
-              clearTimeout(timeoutRefund);
-
-              bot.sendMessage(
-                chatId,
-                `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
-                `🌐 **Dịch vụ:** ${countryLabel}\n` +
-                `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
-                `📩 **MÃ OTP:** \`${otpCode}\``,
-                {
-                  parse_mode: 'Markdown',
-                  reply_markup: {
-                    inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
-                  }
-                }
-              );
-            }
-          } catch (e) {
-            console.error('Lỗi check OTP:', e.message);
+        if (resData && resData.success === true) {
+          rawPhone = resData.number || '';
+          reqId = resData.request_id || 'N/A';
+        } else {
+          return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.message || resData.msg || 'Hết số'}`);
+        }
+      } else if (provider === 'npa') {
+        const apiUrl = `https://otpapi.cmsnpa.com/api/v1/get_number`;
+        const apiResponse = await axios.post(apiUrl, { server: serviceId }, {
+          headers: {
+            'Authorization': `Bearer ${API_KEY_NPA}`,
+            'Content-Type': 'application/json'
           }
-        }, 5000);
+        });
+        const resData = apiResponse.data;
 
-        const timeoutRefund = setTimeout(async () => {
-          if (isCompleted) return;
-          isCompleted = true;
-          clearInterval(checkInterval);
+        if (resData && (resData.ResponseCode === 0 || resData.ok === true) && resData.Result) {
+          rawPhone = resData.Result.Number || '';
+          reqId = resData.Result.Id || 'N/A';
+        } else {
+          return bot.sendMessage(chatId, `❌ **Thông báo:** ${resData.Msg || 'Hết số hoặc số dư API không đủ'}`);
+        }
+      }
 
-          try {
-            await axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY}&id=${reqId}`);
-          } catch (e) {}
+      db[userId].balance -= price;
+      saveUsers(db);
 
-          let currentDb = loadUsers();
-          if (currentDb[userId]) {
-            currentDb[userId].balance += price;
-            saveUsers(currentDb);
+      await bot.sendMessage(
+        chatId,
+        `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
+        `🌐 **Dịch vụ:** ${countryLabel}\n` +
+        `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
+        `🆔 **Mã đơn:** \`${reqId}\`\n` +
+        `💰 **Số dư còn lại:** ${db[userId].balance.toLocaleString()}đ\n\n` +
+        `⏳ *Hệ thống đang tự động chờ mã OTP (tối đa 5 phút)...*`,
+        { parse_mode: 'Markdown' }
+      );
+
+      let isCompleted = false;
+
+      const checkInterval = setInterval(async () => {
+        if (isCompleted) return;
+        try {
+          let otpCode = null;
+
+          if (provider === 'gmailotp') {
+            const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY_GMAILOTP}&id=${reqId}`);
+            const otpData = otpRes.data;
+            otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
+            if (otpCode === 'is_coming') otpCode = null;
+          } else if (provider === 'npa') {
+            const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId }, {
+              headers: {
+                'Authorization': `Bearer ${API_KEY_NPA}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            const otpData = otpRes.data;
+            if (otpData && otpData.ok === true && otpData.code) {
+              otpCode = otpData.code;
+            }
+          }
+
+          if (otpCode) {
+            isCompleted = true;
+            clearInterval(checkInterval);
+            clearTimeout(timeoutRefund);
 
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ**.`,
+              `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP!**\n\n` +
+              `🌐 **Dịch vụ:** ${countryLabel}\n` +
+              `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
+              `📩 **MÃ OTP:** \`${otpCode}\``,
               {
                 parse_mode: 'Markdown',
                 reply_markup: {
                   inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
                 }
               }
-            ).catch(() => {});
+            );
           }
-        }, 5 * 60 * 1000);
+        } catch (e) {
+          console.error('Lỗi check OTP:', e.message);
+        }
+      }, 5000);
 
-      } else {
-        const detailMsg = resData.message || resData.msg || 'Hết số';
-        bot.sendMessage(chatId, `❌ **Thông báo:** ${detailMsg}`);
-      }
+      const timeoutRefund = setTimeout(async () => {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearInterval(checkInterval);
+
+        let currentDb = loadUsers();
+        if (currentDb[userId]) {
+          currentDb[userId].balance += price;
+          saveUsers(currentDb);
+
+          bot.sendMessage(
+            chatId,
+            `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ**.`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
+              }
+            }
+          ).catch(() => {});
+        }
+      }, 5 * 60 * 1000);
+
     } catch (err) {
+      console.error(err.message);
       bot.sendMessage(chatId, `❌ Lỗi kết nối máy chủ!`);
     }
   }
