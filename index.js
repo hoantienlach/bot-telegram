@@ -100,21 +100,18 @@ const bot = new TelegramBot(token, { polling: true });
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
-const REQUIRED_CHANNEL = '@htlach'; // Nhóm / Kênh bắt buộc tham gia
+const REQUIRED_CHANNEL = '@htlach';
 
+// ĐÃ SỬA HÀM CHECK THÀNH VIÊN TỐI ƯU
 async function checkUserMembership(userId) {
-  if (userId === ADMIN_ID) return true;
+  if (userId.toString() === ADMIN_ID) return true;
   try {
     const chatMember = await bot.getChatMember(REQUIRED_CHANNEL, userId);
     const status = chatMember.status;
-    if (status === 'creator' || status === 'administrator' || status === 'member') {
-      return true;
-    }
-    return false;
+    return (status === 'creator' || status === 'administrator' || status === 'member');
   } catch (err) {
-    console.error('Lỗi kiểm tra thành viên nhóm:', err.message);
-    // Nếu chưa tham gia hoặc nhóm chưa cấp quyền đầy đủ cho Bot
-    return false; 
+    console.error('Lỗi check membership:', err.message);
+    return false;
   }
 }
 
@@ -291,7 +288,6 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // KIỂM TRA THÀNH VIÊN BẮT BUỘC
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.sendMessage(
@@ -337,7 +333,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // KIỂM TRA THÀNH VIÊN KHI BẤM NÚT CALLBACK
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.answerCallbackQuery(query.id, { text: '❌ Cần tham gia nhóm https://t.me/htlach trước!', show_alert: true });
