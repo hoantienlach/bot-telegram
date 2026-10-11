@@ -13,8 +13,10 @@ app.listen(PORT, () => {
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
+const { authenticator } = require('otplib');
 
 const USERS_FILE = './users.json';
+const userStates = {};
 
 function loadUsers() {
   try {
@@ -65,7 +67,6 @@ const SERVICE_MAPPING = {
   'rent_tt_colombia': { name: 'TikTok Colombia', price: 1600, service_id: '26145' }
 };
 
-// Hàm gửi Menu chính (Tinh gọn 2 nút lớn)
 function sendMainMenu(chatId, userId) {
   let db = loadUsers();
   if (!db[userId]) {
@@ -76,7 +77,7 @@ function sendMainMenu(chatId, userId) {
   const userBalance = db[userId].balance.toLocaleString();
   const totalUsers = Object.keys(db).length;
 
-  let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
+  let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
                  `💰 Số dư ví: ${userBalance}đ`;
 
@@ -90,6 +91,7 @@ function sendMainMenu(chatId, userId) {
       inline_keyboard: [
         [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+        [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
@@ -99,133 +101,107 @@ function sendMainMenu(chatId, userId) {
   });
 }
 
-// Lệnh /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
+  userStates[userId] = null;
   sendMainMenu(chatId, userId);
 });
 
-// LỆNH ADMIN: Nạp/Cộng tiền cho người dùng (/nap [ID_Telegram] [Số_tiền])
 bot.onText(/\/nap (\d+) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
 
-  if (userId !== ADMIN_ID) {
-    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-  }
+  if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
 
   const targetUserId = match[1];
   const amount = parseInt(match[2], 10);
 
-  if (isNaN(amount) || amount <= 0) {
-    return bot.sendMessage(chatId, `❌ Số tiền phải lớn hơn 0! Cú pháp: \`/nap [ID] [Số_tiền]\``, { parse_mode: 'Markdown' });
-  }
-
   let db = loadUsers();
-  if (!db[targetUserId]) {
-    db[targetUserId] = { balance: 0 };
-  }
+  if (!db[targetUserId]) db[targetUserId] = { balance: 0 };
 
   db[targetUserId].balance += amount;
   saveUsers(db);
 
   const newBalance = db[targetUserId].balance.toLocaleString();
 
-  bot.sendMessage(
-    chatId,
-    `✅ **NẠP TIỀN THÀNH CÔNG!**\n\n` +
-    `👤 ID người dùng: \`${targetUserId}\`\n` +
-    `💵 Số tiền cộng: **+${amount.toLocaleString()}đ**\n` +
-    `💰 Số dư mới: **${newBalance}đ**`,
-    { parse_mode: 'Markdown' }
-  );
-
-  bot.sendMessage(
-    targetUserId,
-    `🎉 **NẠP TIỀN THÀNH CÔNG!**\n\n` +
-    `💵 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**\n` +
-    `💰 Số dư ví hiện tại: **${newBalance}đ**`,
-    { parse_mode: 'Markdown' }
-  ).catch(e => console.error('Không thể gửi tin nhắn cho khách:', e.message));
+  bot.sendMessage(chatId, `✅ Đã nạp thành công ${amount.toLocaleString()}đ cho user \`${targetUserId}\`. Số dư mới: ${newBalance}đ`, { parse_mode: 'Markdown' });
+  bot.sendMessage(targetUserId, `🎉 Tài khoản của bạn đã được cộng: **+${amount.toLocaleString()}đ**. Số dư mới: ${newBalance}đ`, { parse_mode: 'Markdown' }).catch(() => {});
 });
 
-// LỆNH ADMIN: Thống kê số lượng người dùng (/stats)
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
-  if (userId !== ADMIN_ID) {
-    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-  }
-
-  let db = loadUsers();
-  const totalUsers = Object.keys(db).length;
-
-  bot.sendMessage(
-    chatId,
-    `📊 **THỐNG KÊ HỆ THỐNG**\n\n` +
-    `👥 Tổng số người dùng trong cơ sở dữ liệu: **${totalUsers}** người`,
-    { parse_mode: 'Markdown' }
-  );
+  if (msg.from.id.toString() !== ADMIN_ID) return;
+  const db = loadUsers();
+  bot.sendMessage(chatId, `📊 Tổng thành viên hệ thống: **${Object.keys(db).length}** người`, { parse_mode: 'Markdown' });
 });
 
-// LỆNH ADMIN: Gửi thông báo hàng loạt (/broadcast [nội dung])
-bot.onText(/\/broadcast (.+)/, async (msg, match) => {
+bot.onText(/\/check (\d+)/, (msg, match) => {
+  const chatId = msg.chat.id;
+  if (msg.from.id.toString() !== ADMIN_ID) return;
+  const db = loadUsers();
+  const targetId = match[1];
+  if (!db[targetId]) return bot.sendMessage(chatId, `❌ Không tìm thấy user.`);
+  bot.sendMessage(chatId, `🔍 User \`${targetId}\` có số dư: **${db[targetId].balance.toLocaleString()}đ**`, { parse_mode: 'Markdown' });
+});
+
+// Xử lý tự động bóc tách chuỗi 2FA (hỗ trợ cả dạng dán nguyên cụm lẫn dán mỗi key)
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
+  const text = msg.text;
 
-  if (userId !== ADMIN_ID) {
-    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-  }
+  if (!text || text.startsWith('/')) return;
 
-  const broadcastMessage = match[1];
-  let db = loadUsers();
-  const userIds = Object.keys(db);
+  if (userStates[userId] === 'waiting_for_2fa') {
+    userStates[userId] = null;
 
-  let successCount = 0;
-  let failCount = 0;
+    let cleanSecret = '';
 
-  bot.sendMessage(chatId, `📢 Đang gửi thông báo đến ${userIds.length} người dùng, vui lòng đợi...`);
+    // Nếu người dùng dán định dạng có chứa dấu | (VD: mail|pass|secret)
+    if (text.includes('|')) {
+      const parts = text.split('|');
+      // Lấy phần tử cuối cùng trong mảng sau khi cắt dấu |
+      cleanSecret = parts[parts.length - 1].trim().toUpperCase();
+    } else {
+      // Nếu người dùng chỉ dán mỗi secret key thông thường
+      cleanSecret = text.replace(/\s+/g, '').toUpperCase();
+    }
 
-  for (const id of userIds) {
     try {
-      await bot.sendMessage(id, `🔔 **THÔNG BÁO TỪ HỆ THỐNG**\n\n${broadcastMessage}`, { parse_mode: 'Markdown' });
-      successCount++;
-      await new Promise(resolve => setTimeout(resolve, 50));
+      const token2fa = authenticator.generate(cleanSecret);
+
+      bot.sendMessage(
+        chatId,
+        `🔐 **MÃ 2FA THÀNH CÔNG!**\n\n` +
+        `🔑 **Secret trích xuất:** \`${cleanSecret}\`\n` +
+        `✅ **Mã 2FA hiện tại:** \`${token2fa}\``,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔄 Lấy mã khác', callback_data: 'get_2fa_menu' }],
+              [{ text: '🏠 Về menu chính', callback_data: 'back_main' }]
+            ]
+          }
+        }
+      );
     } catch (err) {
-      failCount++;
+      bot.sendMessage(
+        chatId,
+        `❌ **Không thể tạo mã 2FA từ đoạn dữ liệu này!**\nVui lòng kiểm tra lại cấu trúc chuỗi và thử lại.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🔄 Thử lại', callback_data: 'get_2fa_menu' }],
+              [{ text: '🏠 Về menu chính', callback_data: 'back_main' }]
+            ]
+          }
+        }
+      );
     }
   }
-
-  bot.sendMessage(chatId, `✅ **GỬI THÔNG BÁO HOÀN TẤT!**\n- Thành công: ${successCount}\n- Thất bại: ${failCount}`);
-});
-
-// LỆNH ADMIN: Kiểm tra số dư người dùng (/check [ID_Telegram])
-bot.onText(/\/check (\d+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-
-  if (userId !== ADMIN_ID) {
-    return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-  }
-
-  const targetUserId = match[1];
-  let db = loadUsers();
-
-  if (!db[targetUserId]) {
-    return bot.sendMessage(chatId, `❌ Không tìm thấy thông tin của người dùng có ID: \`${targetUserId}\`.`);
-  }
-
-  const userBalance = db[targetUserId].balance.toLocaleString();
-
-  bot.sendMessage(
-    chatId,
-    `🔍 **THÔNG TIN TÀI KHOẢN KHÁCH HÀNG**\n\n` +
-    `👤 ID: \`${targetUserId}\`\n` +
-    `💰 Số dư hiện tại: **${userBalance}đ**`,
-    { parse_mode: 'Markdown' }
-  );
 });
 
 bot.on('callback_query', async (query) => {
@@ -235,20 +211,58 @@ bot.on('callback_query', async (query) => {
   const action = query.data;
 
   let db = loadUsers();
-  if (!db[userId]) {
-    db[userId] = { balance: 12000 };
-  }
+  if (!db[userId]) db[userId] = { balance: 12000 };
 
-  if (action === 'rent_more') {
-    return sendMainMenu(chatId, userId);
-  }
+  if (action === 'rent_more' || action === 'back_main') {
+    userStates[userId] = null;
+    const userBalance = db[userId].balance.toLocaleString();
+    const totalUsers = Object.keys(db).length;
 
-  // Xử lý menu con Shopee
-  if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ **CHỌN MÃ VÙNG SHOPEE**`, {
+    let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
+                   `👤 ID của bạn: \`${userId}\`\n` +
+                   `💰 Số dư ví: ${userBalance}đ`;
+
+    if (userId === ADMIN_ID) menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
+
+    return bot.editMessageText(menuText, {
       chat_id: chatId,
       message_id: messageId,
       parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
+          [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+          [{ text: '🔐 Lấy mã 2FA (2fa.live)', callback_data: 'get_2fa_menu' }],
+          [
+            { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
+            { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+          ]
+        ]
+      }
+    });
+  }
+
+  if (action === 'get_2fa_menu') {
+    userStates[userId] = 'waiting_for_2fa';
+    return bot.editMessageText(
+      `🔐 **HỆ THỐNG LẤY MÃ 2FA**\n\n` +
+      `Bạn có thể dán nguyên cụm (Ví dụ: \`mail|pass|secret_key\`) hoặc dán riêng mã Secret Key vào khung chat. Bot sẽ tự động lọc lấy phần key để tạo mã!`,
+      {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+          ]
+        }
+      }
+    );
+  }
+
+  if (action === 'menu_shopee') {
+    return bot.editMessageText(`🛍️ **CHỌN MÃ VÙNG SHOPEE**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee VN 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
@@ -259,12 +273,9 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // Xử lý menu con TikTok
   if (action === 'menu_tiktok') {
     return bot.editMessageText(`🎵 **CHỌN MÃ VÙNG TIKTOK**`, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: 'Markdown',
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
@@ -277,52 +288,12 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // Quay lại menu chính
-  if (action === 'back_main') {
-    const userBalance = db[userId].balance.toLocaleString();
-    const totalUsers = Object.keys(db).length;
-
-    let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG**\n` +
-                   `👤 ID của bạn: \`${userId}\`\n` +
-                   `💰 Số dư ví: ${userBalance}đ`;
-
-    if (userId === ADMIN_ID) {
-      menuText += `\n📊 **Tổng thành viên:** ${totalUsers} người`;
-    }
-
-    return bot.editMessageText(menuText, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
-          [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
-          [
-            { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-            { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
-          ]
-        ]
-      }
-    });
-  }
-
   if (action === 'check_balance') {
-    return bot.answerCallbackQuery(query.id, {
-      text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`,
-      show_alert: true
-    });
+    return bot.answerCallbackQuery(query.id, { text: `Số dư hiện tại của bạn: ${db[userId].balance.toLocaleString()}đ`, show_alert: true });
   }
 
   if (action === 'support_admin') {
-    return bot.sendMessage(
-      chatId,
-      `📞 **HỖ TRỢ KHÁCH HÀNG**\n\n` +
-      `👤 ID Telegram của bạn: \`${userId}\`\n` +
-      `💬 Liên hệ trực tiếp Admin để nạp tiền hoặc giải đáp thắc mắc:\n` +
-      `👉 Admin: https://t.me/phanhe`,
-      { disable_web_page_preview: true }
-    );
+    return bot.sendMessage(chatId, `📞 **HỖ TRỢ KHÁCH HÀNG**\n👉 Liên hệ Admin: https://t.me/phanhe`, { disable_web_page_preview: true });
   }
 
   if (action.startsWith('rent_')) {
@@ -333,7 +304,7 @@ bot.on('callback_query', async (query) => {
     const serviceId = serviceInfo.service_id;
 
     if (db[userId].balance < price) {
-      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ để thuê dịch vụ này.`, { parse_mode: 'Markdown' });
+      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Bạn cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
     try {
@@ -364,11 +335,9 @@ bot.on('callback_query', async (query) => {
 
         const checkInterval = setInterval(async () => {
           if (isCompleted) return;
-
           try {
             const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY}&id=${reqId}`);
             const otpData = otpRes.data;
-
             const otpCode = otpData.otp_code || otpData.code || otpData.otp || otpData.sms;
 
             if (otpData && (otpData.success === true || otpData.status === 'success' || otpCode) && otpCode && otpCode !== 'is_coming') {
@@ -385,15 +354,13 @@ bot.on('callback_query', async (query) => {
                 {
                   parse_mode: 'Markdown',
                   reply_markup: {
-                    inline_keyboard: [
-                      [{ text: '🔄 Thuê tiếp', callback_data: 'rent_more' }]
-                    ]
+                    inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
                   }
                 }
               );
             }
           } catch (e) {
-            console.error('Lỗi check OTP nền:', e.message);
+            console.error('Lỗi check OTP:', e.message);
           }
         }, 5000);
 
@@ -404,9 +371,7 @@ bot.on('callback_query', async (query) => {
 
           try {
             await axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY}&id=${reqId}`);
-          } catch (e) {
-            console.error('Lỗi gọi API hủy số:', e.message);
-          }
+          } catch (e) {}
 
           let currentDb = loadUsers();
           if (currentDb[userId]) {
@@ -415,26 +380,23 @@ bot.on('callback_query', async (query) => {
 
             bot.sendMessage(
               chatId,
-              `⏰ **ĐÃ HẾT 5 PHÚT!**\nĐơn hàng \`${reqId}\` không nhận được OTP. Hệ thống đã tự động hủy đơn và hoàn lại **${price.toLocaleString()}đ** vào ví của bạn.`,
+              `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ**.`,
               {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                  inline_keyboard: [
-                    [{ text: '🔄 Thuê tiếp', callback_data: 'rent_more' }]
-                  ]
+                  inline_keyboard: [[{ text: '🔄 Thuê tiếp', callback_data: 'back_main' }]]
                 }
               }
-            ).catch(e => console.error(e));
+            ).catch(() => {});
           }
         }, 5 * 60 * 1000);
 
       } else {
-        const detailMsg = resData.message || resData.msg || 'Hệ thống hết số hoặc bận';
+        const detailMsg = resData.message || resData.msg || 'Hết số';
         bot.sendMessage(chatId, `❌ **Thông báo:** ${detailMsg}`);
       }
     } catch (err) {
-      console.error('Lỗi API lấy số:', err.message);
-      bot.sendMessage(chatId, `❌ Lỗi kết nối máy chủ, vui lòng thử lại sau!`);
+      bot.sendMessage(chatId, `❌ Lỗi kết nối máy chủ!`);
     }
   }
 });
