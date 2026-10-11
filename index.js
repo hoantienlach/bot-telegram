@@ -626,14 +626,23 @@ bot.on('callback_query', async (query) => {
       );
 
       let isCompleted = false;
+      
+      // Tăng thời gian check OTP lên 10 giây/lần để tránh dính quá tải rate limit ("too_fast")
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
           let otpCode = null;
           if (provider === 'gmailotp') {
             const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY_GMAILOTP}&id=${reqId}`);
-            otpCode = otpRes.data.otp_code || otpRes.data.code || otpRes.data.otp || otpRes.data.sms;
-            if (otpCode === 'is_coming') otpCode = null;
+            let resOtp = otpRes.data.otp_code || otpRes.data.code || otpRes.data.otp || otpRes.data.sms;
+            
+            // Lọc bỏ các giá trị trạng thái không phải OTP thực tế
+            if (resOtp && typeof resOtp === 'string') {
+              const cleanOtp = resOtp.trim().toLowerCase();
+              if (!['is_coming', 'too_fast', 'wait', 'pending', 'none'].includes(cleanOtp)) {
+                otpCode = resOtp;
+              }
+            }
           } else if (provider === 'npa') {
             const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId.toString() }, {
               headers: { 'Authorization': `Bearer ${API_KEY_NPA}`, 'Content-Type': 'application/json' }
@@ -660,7 +669,7 @@ bot.on('callback_query', async (query) => {
             ).catch(() => {});
           }
         } catch (e) {}
-      }, 5000);
+      }, 10000); // 10 giây/lần
 
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
