@@ -47,7 +47,7 @@ const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
 
-// Username nhóm Telegram chính xác từ ảnh của bạn (t.me/htlach)
+// Username nhóm Telegram chính xác
 const REQUIRED_GROUP = '@htlach';
 
 bot.setMyCommands([
@@ -64,7 +64,7 @@ bot.setMyCommands([
 
 // Hàm kiểm tra thành viên group
 async function checkUserInGroup(userId) {
-  if (userId === ADMIN_ID) return true; // Admin luôn được phép
+  if (userId === ADMIN_ID) return true;
   try {
     const chatMember = await bot.getChatMember(REQUIRED_GROUP, userId);
     const status = chatMember.status;
@@ -78,10 +78,10 @@ async function checkUserInGroup(userId) {
   }
 }
 
-// Danh sách dịch vụ
+// Danh sách dịch vụ - Chuẩn hóa toàn bộ tên Shopee chỉ gồm chữ "Shopee" + Số
 const SERVICE_MAPPING = {
-  // --- SHOPEE ---
-  'rent_npa_shopee_ga': { name: 'Shopee Gà', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
+  // --- SHOPEE (Chỉ gồm Shopee + Số) ---
+  'rent_npa_shopee_0': { name: 'Shopee 0', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
   'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: 'shopee_ga', provider: 'npa' },
   'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: 'shopee_bo', provider: 'npa' },
   'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: 'shopee_trau', provider: 'npa' },
@@ -334,12 +334,13 @@ bot.on('callback_query', async (query) => {
     );
   }
 
+  // Menu Shopee (100% định dạng chữ + số)
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ **CHỌN DỊCH VỤ SHOPEE**`, {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee gà - 4.000đ', callback_data: 'rent_npa_shopee_ga' }],
+          [{ text: '🛍️ Shopee 0 - 4.000đ', callback_data: 'rent_npa_shopee_0' }],
           [{ text: '🛍️ Shopee 1 - 4.000đ', callback_data: 'rent_npa_shopee_1' }],
           [{ text: '🛍️ Shopee 2 - 4.000đ', callback_data: 'rent_npa_shopee_2' }],
           [{ text: '🛍️ Shopee 3 - 4.000đ', callback_data: 'rent_npa_shopee_3' }],
