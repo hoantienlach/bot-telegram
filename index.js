@@ -352,7 +352,8 @@ bot.on('callback_query', async (query) => {
   const user = await getUser(userId);
 
   if (action === 'menu_nap') {
-    return sendDepositMenu(chatId, messageId);
+    bot.deleteMessage(chatId, messageId).catch(() => {});
+    return sendDepositMenu(chatId);
   }
 
   if (action.startsWith('dep_')) {
@@ -380,6 +381,28 @@ bot.on('callback_query', async (query) => {
       menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                   `👥 Tổng thành viên: **${totalUsers}** người\n` +
                   `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
+    }
+
+    // Nếu bấm từ trang QR (tin nhắn ảnh), dùng sendMessage thay vì editMessageText để không bị lỗi
+    if (query.message.photo) {
+      bot.deleteMessage(chatId, messageId).catch(() => {});
+      return bot.sendMessage(chatId, menuText, {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
+            [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
+            [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
+            [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
+            [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
+            [
+              { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
+              { text: '📞 Hỗ trợ Admin', callback_data: 'support_admin' }
+            ]
+          ]
+        }
+      });
     }
 
     return bot.editMessageText(menuText, {
