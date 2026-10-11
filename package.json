@@ -1,7 +1,7 @@
 {
   "name": "bot-telegram",
   "version": "1.0.0",
-  "description": "Telegram OTP Rental Bot",
+  "description": "Telegram bot for hoantienlach.com",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -9,7 +9,8 @@
   "dependencies": {
     "axios": "^1.6.0",
     "express": "^4.18.2",
-    "node-telegram-bot-api": "^0.66.0",
+    "mongoose": "^6.12.0",
+    "node-telegram-bot-api": "^0.64.0",
     "otplib": "^12.0.1"
   }
 }
