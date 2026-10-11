@@ -171,11 +171,27 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-bot.setMyCommands([
-  { command: 'start', description: 'Mở menu thuê số & ví' },
-  { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
-  { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
-]);
+// PHÂN QUYỀN HIỂN THỊ MENU LỆNH (THÀNH VIÊN VS ADMIN)
+async function setupBotCommands() {
+  try {
+    // Menu cho thành viên thường (Chỉ có /start)
+    await bot.setMyCommands([
+      { command: 'start', description: 'Mở menu thuê số & ví' }
+    ]);
+
+    // Menu riêng cho Admin (Thêm lệnh /nap và /sendall)
+    await bot.setMyCommands([
+      { command: 'start', description: 'Mở menu thuê số & ví' },
+      { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
+      { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
+    ], {
+      scope: { type: 'chat', chat_id: ADMIN_ID }
+    });
+  } catch (e) {
+    console.error('Lỗi cài đặt setMyCommands:', e.message);
+  }
+}
+setupBotCommands();
 
 function getServiceInfo(action) {
   const map = {
@@ -309,7 +325,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // LỆNH GỬI THÔNG BÁO CHO TOÀN BỘ THÀNH VIÊN (CHỈ ADMIN)
   if (text.startsWith('/sendall')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const messageContent = text.replace('/sendall', '').trim();
@@ -332,7 +347,6 @@ bot.on('message', async (msg) => {
             { parse_mode: 'Markdown', disable_web_page_preview: true }
           );
           successCount++;
-          // Chờ 50ms giữa mỗi tin nhắn để tránh bị Telegram chặn do gửi quá nhanh (Rate limit)
           await new Promise(resolve => setTimeout(resolve, 50));
         } catch (err) {
           failCount++;
