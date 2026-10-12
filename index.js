@@ -104,7 +104,7 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
-// BIẾN TRẠNG THÁI BẢO TRÌ (Mặc định là false - chạy bình thường)
+// BIẾN TRẠNG THÁI BẢO TRÌ
 let isMaintenanceMode = false;
 
 const cooldowns = new Map();
@@ -203,14 +203,17 @@ function getServiceInfo(action) {
     'rent_npa_shopee_4': { name: 'Shopee 4', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
+    
+    // CAP NHAT 8 SERVICE ID TIKTOK MOI MOI
     'rent_tt_us10': { name: 'TikTok US 10', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US 9', price: 1200, service_id: '19194', provider: 'gmailotp' },
+    'rent_tt_indo19': { name: 'TikTok Indonesia 19', price: 1200, service_id: '19173', provider: 'gmailotp' },
     'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1200, service_id: '19244', provider: 'gmailotp' },
-    'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1200, service_id: '19404', provider: 'gmailotp' },
     'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1200, service_id: '26145', provider: 'gmailotp' },
     'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1200, service_id: '3421', provider: 'gmailotp' },
     'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1200, service_id: '3429', provider: 'gmailotp' },
     'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1200, service_id: '3430', provider: 'gmailotp' },
+    
     'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' },
     'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: npaServiceIds.lotteria, provider: 'npa' },
     'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: npaServiceIds.katinat, provider: 'npa' }
@@ -325,7 +328,6 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // NẾU ĐANG BẬT BẢO TRÌ VÀ KHÔNG PHẢI ADMIN THÌ CHẶN NGAY
   if (isMaintenanceMode && userId !== ADMIN_ID) {
     return bot.sendMessage(
       chatId, 
@@ -338,7 +340,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // XỬ LÝ LỆNH BẬT/TẮT BẢO TRÌ CHO ADMIN: /baotri on hoặc /baotri off
   if (text.startsWith('/baotri')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -355,7 +356,6 @@ bot.on('message', async (msg) => {
     }
   }
 
-  // XỬ LÝ NHẬP SỐ TIỀN TÙY CHỌN
   if (userState.get(userId) === 'awaiting_deposit_amount') {
     const cleanNumberText = text.replace(/[^0-9]/g, '');
     const customAmount = parseInt(cleanNumberText, 10);
@@ -445,7 +445,6 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // LỌC CHUỖI 2FA SIÊU SẠCH: CHỈ GIỮ LẠI CÁC KÝ TỰ VALID BASE32 (A-Z VÀ 2-7)
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
@@ -465,7 +464,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // NẾU ĐANG BẬT BẢO TRÌ VÀ KHÔNG PHẢI ADMIN THÌ CHẶN NÚT BẤM
   if (isMaintenanceMode && userId !== ADMIN_ID) {
     return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
   }
@@ -582,6 +580,7 @@ bot.on('callback_query', async (query) => {
     });
   }
 
+  // MENU TIKTOK VOI DANH SACH NUT BAM VA SERVICE ID MOI
   if (action === 'menu_tiktok') {
     return bot.editMessageText(`🎵 **CHỌN MÃ VÙNG TIKTOK**`, {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
@@ -589,8 +588,8 @@ bot.on('callback_query', async (query) => {
         inline_keyboard: [
           [{ text: '🎵 TikTok US 10 - 1.200đ', callback_data: 'rent_tt_us10' }],
           [{ text: '🎵 TikTok US 9 - 1.200đ', callback_data: 'rent_tt_us9' }],
+          [{ text: '🎵 TikTok Indonesia 19 - 1.200đ', callback_data: 'rent_tt_indo19' }],
           [{ text: '🎵 TikTok Indonesia 21 - 1.200đ', callback_data: 'rent_tt_indo21' }],
-          [{ text: '🎵 TikTok Chile 9 - 1.200đ', callback_data: 'rent_tt_chile9' }],
           [{ text: '🎵 TikTok Chile 12 - 1.200đ', callback_data: 'rent_tt_chile12' }],
           [{ text: '🎵 TikTok Chile 7 - 1.200đ', callback_data: 'rent_tt_chile7' }],
           [{ text: '🎵 TikTok Colombia 7 - 1.200đ', callback_data: 'rent_tt_colombia7' }],
@@ -634,7 +633,7 @@ bot.on('callback_query', async (query) => {
 
   if (action.startsWith('rent_')) {
     if (checkSpam(userId)) {
-      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
+      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn thao tác quá nhanh, vui lòng từ từ!', show_alert: true });
     }
 
     const serviceInfo = getServiceInfo(action);
