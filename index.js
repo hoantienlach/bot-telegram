@@ -228,58 +228,50 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE (GỌI API CỦA EMAILFAKE)
-async function getEmailFakeOTP(emailStr) {
+// HÀM LẤY OTP EMAILFAKE (HỖ TRỢ CẢ LINK ĐƯỜNG DẪN HOẶC EMAIL)
+async function getEmailFakeOTP(inputStr) {
   try {
-    const cleanEmail = emailStr.trim();
-    if (!cleanEmail.includes('@')) return null;
+    const cleanInput = inputStr.trim();
+    let targetUrl = cleanInput;
 
-    const parts = cleanEmail.split('@');
-    const user = parts[0];
-    const domain = parts[1];
+    if (!cleanInput.startsWith('http')) {
+      if (!cleanInput.includes('@')) return null;
+      const parts = cleanInput.split('@');
+      const user = parts[0];
+      const domain = parts[1];
+      targetUrl = `https://emailfake.com/${domain}/${user}`;
+    }
 
-    const apiUrl = `https://emailfake.com/check_for_new_mail.php?e=${encodeURIComponent(cleanEmail)}&u=${encodeURIComponent(user)}&d=${encodeURIComponent(domain)}`;
-    
-    const res = await axios.get(apiUrl, {
+    const res = await axios.get(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': `https://emailfake.com/${domain}/${user}`,
-        'X-Requested-With': 'XMLHttpRequest'
+        'Referer': 'https://emailfake.com/'
       },
       timeout: 10000
     });
 
-    let htmlContent = '';
     if (res.data) {
-      if (typeof res.data === 'object') {
-        htmlContent = JSON.stringify(res.data);
-      } else {
-        htmlContent = String(res.data);
+      const decodedHtml = decodeQuotedPrintable(String(res.data));
+      const $ = cheerio.load(decodedHtml);
+
+      let foundOtp = null;
+      $('tr, td, span, div, p, a').each((i, el) => {
+        if (foundOtp) return;
+        const text = $(el).text().trim();
+        const match6 = text.match(/\b\d{6}\b/);
+        if (match6) {
+          foundOtp = match6[0];
+        }
+      });
+
+      if (foundOtp) return foundOtp;
+
+      const pageText = $('body').text() || decodedHtml;
+      const fallbackMatch = pageText.match(/\b\d{6}\b/);
+      if (fallbackMatch) {
+        return fallbackMatch[0];
       }
     }
-
-    const decodedHtml = decodeQuotedPrintable(htmlContent);
-
-    const match6 = decodedHtml.match(/\b\d{6}\b/);
-    if (match6) {
-      return match6[0];
-    }
-
-    const targetUrl = `https://emailfake.com/${domain}/${user}`;
-    const fallbackRes = await axios.get(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Cookie': `surl=${domain}/${user}`
-      },
-      timeout: 8000
-    });
-
-    if (fallbackRes.data) {
-      const decodedFallback = decodeQuotedPrintable(String(fallbackRes.data));
-      const matchFallback = decodedFallback.match(/\b\d{6}\b/);
-      if (matchFallback) return matchFallback[0];
-    }
-
     return null;
   } catch (err) {
     return null;
@@ -352,7 +344,7 @@ async function sendMainMenu(chatId, userId) {
 
   menuText += `\n⚡ DÁN TRỰC TIẾP DỮ LIỆU VÀO ĐÂY:\n` +
               `• Secret Key 2FA -> Mã OTP 6 số\n` +
-              `• Email Fake -> Lấy OTP tự động từ emailfake.com`;
+              `• Link hoặc Email Fake -> Lấy OTP tự động từ emailfake.com`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -688,23 +680,20 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // 1. TỰ ĐỘNG NHẬN DIỆN LẤY OTP EMAILFAKE (EMAILFAKE.COM)
-  if (text.includes('@')) {
+  // 1. TỰ ĐỘNG NHẬN DIỆN LẤY OTP TỪ LINK HOẶC EMAILFAKE
+  if (text.includes('emailfake.com') || text.includes('@')) {
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     let results = [];
 
-    bot.sendMessage(chatId, `⏳ Đang quét OTP từ emailfake.com cho ${lines.length} dòng dữ liệu...`);
+    bot.sendMessage(chatId, `⏳ Đang quét OTP từ emailfake cho ${lines.length} mục dữ liệu...`);
 
     for (const line of lines) {
-      const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-        const email = emailMatch[0];
-        const otp = await getEmailFakeOTP(email);
-        if (otp) {
-          results.push(`📧 Email: \`${email}\`\n🔑 Mã OTP: \`${otp}\``);
-        } else {
-          results.push(`📧 Email: \`${email}\`\n❌ Chưa nhận được OTP (hoặc hết hạn)`);
-        }
+      const targetInput = line.trim();
+      const otp = await getEmailFakeOTP(targetInput);
+      if (otp) {
+        results.push(`🔗 Mục: \`${targetInput}\`\n🔑 Mã OTP: \`${otp}\``);
+      } else {
+        results.push(`🔗 Mục: \`${targetInput}\`\n❌ Chưa nhận được OTP (hoặc hết hạn)`);
       }
     }
 
@@ -723,7 +712,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
     } catch (err) {}
   } else {
-    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA hoặc Email Fake từ emailfake.com để lấy OTP.`);
+    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA hoặc Đường dẫn/Email từ emailfake.com để lấy OTP.`);
   }
 });
 
