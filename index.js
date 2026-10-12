@@ -104,7 +104,6 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
-// HỆ THỐNG CHỐNG SPAM
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
 
@@ -199,14 +198,14 @@ function getServiceInfo(action) {
     'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
-    'rent_tt_us10': { name: 'TikTok US 10', price: 1200, service_id: '19272', provider: 'gmailotp' },
-    'rent_tt_us9': { name: 'TikTok US 9', price: 1200, service_id: '19194', provider: 'gmailotp' },
-    'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1200, service_id: '19244', provider: 'gmailotp' },
-    'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1200, service_id: '19404', provider: 'gmailotp' },
-    'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1200, service_id: '26145', provider: 'gmailotp' },
-    'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1200, service_id: '3421', provider: 'gmailotp' },
-    'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1200, service_id: '3429', provider: 'gmailotp' },
-    'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1200, service_id: '3430', provider: 'gmailotp' },
+    'rent_tt_us10': { name: 'TikTok US 10', price: 1600, service_id: '19272', provider: 'gmailotp' },
+    'rent_tt_us9': { name: 'TikTok US 9', price: 1600, service_id: '19194', provider: 'gmailotp' },
+    'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1600, service_id: '19244', provider: 'gmailotp' },
+    'rent_tt_chile9': { name: 'TikTok Chile 9', price: 1600, service_id: '19404', provider: 'gmailotp' },
+    'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1600, service_id: '26145', provider: 'gmailotp' },
+    'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1600, service_id: '3421', provider: 'gmailotp' },
+    'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1600, service_id: '3429', provider: 'gmailotp' },
+    'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1600, service_id: '3430', provider: 'gmailotp' },
     'rent_npa_grab_v1': { name: 'Grab V1', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' },
     'rent_npa_lotteria': { name: 'Lotteria', price: 3000, service_id: npaServiceIds.lotteria, provider: 'npa' },
     'rent_npa_katinat': { name: 'Katinat', price: 3000, service_id: npaServiceIds.katinat, provider: 'npa' }
@@ -399,11 +398,16 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  let cleanSecret = text.includes('|') ? text.split('|').pop().trim().toUpperCase() : text.replace(/\s+/g, '').toUpperCase();
+  // LÀM SẠCH CHUỖI 2FA TRIỆT ĐỂ (XÓA KHOẢNG TRẮNG, DẤU CÁCH VÀ XUỐNG DÒNG ẨN)
+  let cleanSecret = text.includes('|') ? text.split('|').pop() : text;
+  cleanSecret = cleanSecret.replace(/[\s\r\n]+/g, '').trim().toUpperCase();
+
   try {
     const token2fa = authenticator.generate(cleanSecret);
     bot.sendMessage(chatId, `🔐 **MÃ 2FA:**\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
-  } catch (err) {}
+  } catch (err) {
+    bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ hoặc chứa ký tự không hỗ trợ!`);
+  }
 });
 
 bot.on('callback_query', async (query) => {
@@ -518,14 +522,14 @@ bot.on('callback_query', async (query) => {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🎵 TikTok US 10 - 1.200đ', callback_data: 'rent_tt_us10' }],
-          [{ text: '🎵 TikTok US 9 - 1.200đ', callback_data: 'rent_tt_us9' }],
-          [{ text: '🎵 TikTok Indonesia 21 - 1.200đ', callback_data: 'rent_tt_indo21' }],
-          [{ text: '🎵 TikTok Chile 9 - 1.200đ', callback_data: 'rent_tt_chile9' }],
-          [{ text: '🎵 TikTok Chile 12 - 1.200đ', callback_data: 'rent_tt_chile12' }],
-          [{ text: '🎵 TikTok Chile 7 - 1.200đ', callback_data: 'rent_tt_chile7' }],
-          [{ text: '🎵 TikTok Colombia 7 - 1.200đ', callback_data: 'rent_tt_colombia7' }],
-          [{ text: '🎵 TikTok Colombia 8 - 1.200đ', callback_data: 'rent_tt_colombia8' }],
+          [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
+          [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
+          [{ text: '🎵 TikTok Indonesia 21 - 1.600đ', callback_data: 'rent_tt_indo21' }],
+          [{ text: '🎵 TikTok Chile 9 - 1.600đ', callback_data: 'rent_tt_chile9' }],
+          [{ text: '🎵 TikTok Chile 12 - 1.600đ', callback_data: 'rent_tt_chile12' }],
+          [{ text: '🎵 TikTok Chile 7 - 1.600đ', callback_data: 'rent_tt_chile7' }],
+          [{ text: '🎵 TikTok Colombia 7 - 1.600đ', callback_data: 'rent_tt_colombia7' }],
+          [{ text: '🎵 TikTok Colombia 8 - 1.600đ', callback_data: 'rent_tt_colombia8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
@@ -626,8 +630,6 @@ bot.on('callback_query', async (query) => {
       );
 
       let isCompleted = false;
-      
-      // Tăng thời gian check OTP lên 10 giây/lần để tránh dính quá tải rate limit ("too_fast")
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
@@ -636,7 +638,6 @@ bot.on('callback_query', async (query) => {
             const otpRes = await axios.get(`https://gmailotp.site/api?action=get_code&key=${API_KEY_GMAILOTP}&id=${reqId}`);
             let resOtp = otpRes.data.otp_code || otpRes.data.code || otpRes.data.otp || otpRes.data.sms;
             
-            // Lọc bỏ các giá trị trạng thái không phải OTP thực tế
             if (resOtp && typeof resOtp === 'string') {
               const cleanOtp = resOtp.trim().toLowerCase();
               if (!['is_coming', 'too_fast', 'wait', 'pending', 'none'].includes(cleanOtp)) {
@@ -669,7 +670,7 @@ bot.on('callback_query', async (query) => {
             ).catch(() => {});
           }
         } catch (e) {}
-      }, 10000); // 10 giây/lần
+      }, 10000);
 
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
