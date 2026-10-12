@@ -398,15 +398,17 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // LÀM SẠCH CHUỖI 2FA TRIỆT ĐỂ (XÓA KHOẢNG TRẮNG, DẤU CÁCH VÀ XUỐNG DÒNG ẨN)
-  let cleanSecret = text.includes('|') ? text.split('|').pop() : text;
-  cleanSecret = cleanSecret.replace(/[\s\r\n]+/g, '').trim().toUpperCase();
+  // LỘC CHUỖI 2FA SIÊU SẠCH: CHỈ GIỮ LẠI CÁC KÝ TỰ VALID BASE32 (A-Z VÀ 2-7)
+  let rawSecret = text.includes('|') ? text.split('|').pop() : text;
+  let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
-  try {
-    const token2fa = authenticator.generate(cleanSecret);
-    bot.sendMessage(chatId, `🔐 **MÃ 2FA:**\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
-  } catch (err) {
-    bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ hoặc chứa ký tự không hỗ trợ!`);
+  if (cleanSecret.length >= 16) {
+    try {
+      const token2fa = authenticator.generate(cleanSecret);
+      return bot.sendMessage(chatId, `🔐 **MÃ 2FA:**\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
+    } catch (err) {}
+  } else {
+    bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ! Vui lòng kiểm tra lại.`);
   }
 });
 
