@@ -104,10 +104,11 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
+// BIẾN TRẠNG THÁI BẢO TRÌ (Mặc định là false - chạy bình thường)
+let isMaintenanceMode = false;
+
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
-
-// LƯU TRẠNG THÁI NHẬP SỐ TIỀN CỦA USER
 const userState = new Map();
 
 function checkSpam(userId) {
@@ -182,6 +183,7 @@ async function setupBotCommands() {
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
+      { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
       scope: { type: 'chat', chat_id: ADMIN_ID }
@@ -236,7 +238,8 @@ async function sendMainMenu(chatId, userId) {
 
     menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                 `👥 Tổng thành viên: **${totalUsers}** người\n` +
-                `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
+                `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
+                `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
   }
 
   bot.sendMessage(chatId, menuText, {
@@ -322,8 +325,34 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
+  // NẾU ĐANG BẬT BẢO TRÌ VÀ KHÔNG PHẢI ADMIN THÌ CHẶN NGAY
+  if (isMaintenanceMode && userId !== ADMIN_ID) {
+    return bot.sendMessage(
+      chatId, 
+      `🛠️ **HỆ THỐNG ĐANG BẢO TRÌ**\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
   if (checkSpam(userId)) {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
+  // XỬ LÝ LỆNH BẬT/TẮT BẢO TRÌ CHO ADMIN: /baotri on hoặc /baotri off
+  if (text.startsWith('/baotri')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const status = parts[1] ? parts[1].toLowerCase() : '';
+
+    if (status === 'on') {
+      isMaintenanceMode = true;
+      return bot.sendMessage(chatId, `🔴 **Đã BẬT chế độ bảo trì!** Thành viên thường sẽ không sử dụng được bot. Chỉ có Admin được phép thao tác.`);
+    } else if (status === 'off') {
+      isMaintenanceMode = false;
+      return bot.sendMessage(chatId, `🟢 **Đã TẮT chế độ bảo trì!** Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
+    } else {
+      return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**\n\n👉 Cách dùng:\n- Bật: \`/baotri on\`\n- Tắt: \`/baotri off\``, { parse_mode: 'Markdown' });
+    }
   }
 
   // XỬ LÝ NHẬP SỐ TIỀN TÙY CHỌN
@@ -436,6 +465,11 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
+  // NẾU ĐANG BẬT BẢO TRÌ VÀ KHÔNG PHẢI ADMIN THÌ CHẶN NÚT BẤM
+  if (isMaintenanceMode && userId !== ADMIN_ID) {
+    return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
+  }
+
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
     return bot.answerCallbackQuery(query.id, { text: `❌ Vui lòng bấm tham gia nhóm trước!`, show_alert: true });
@@ -486,7 +520,8 @@ bot.on('callback_query', async (query) => {
 
       menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                   `👥 Tổng thành viên: **${totalUsers}** người\n` +
-                  `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**`;
+                  `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
+                  `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
     }
 
     if (query.message.photo) {
@@ -597,10 +632,9 @@ bot.on('callback_query', async (query) => {
     return bot.answerCallbackQuery(query.id, { text: `💰 Số dư ví: ${bal}đ | 💳 Tổng nạp: ${dep}đ`, show_alert: true });
   }
 
-  // CHỈ ÁP DỤNG CHỐNG SPAM KHI BẤM THUÊ SỐ (RENT_)
   if (action.startsWith('rent_')) {
     if (checkSpam(userId)) {
-      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn thao tác quá nhanh, vui lòng từ từ!', show_alert: true });
+      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
     }
 
     const serviceInfo = getServiceInfo(action);
@@ -615,7 +649,6 @@ bot.on('callback_query', async (query) => {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
-    // Trừ tiền trước
     let updatedUser = user;
     if (!isAdmin) {
       updatedUser = await User.findOneAndUpdate(
@@ -637,7 +670,6 @@ bot.on('callback_query', async (query) => {
           rawPhone = resData.number || '';
           reqId = resData.request_id || 'N/A';
         } else {
-          // Hoàn tiền nếu hết số
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
@@ -653,7 +685,6 @@ bot.on('callback_query', async (query) => {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
         } else {
-          // Hoàn tiền nếu hết số
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
@@ -744,7 +775,6 @@ bot.on('callback_query', async (query) => {
       }, 300 * 1000);
 
     } catch (err) {
-      // Hoàn tiền nếu lỗi hệ thống/server
       if (!isAdmin) {
         await User.updateOne({ userId: userId }, { $inc: { balance: price } });
       }
