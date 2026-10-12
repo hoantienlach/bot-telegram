@@ -195,7 +195,7 @@ function getServiceInfo(action) {
     'rent_npa_shopee_1': { name: 'Shopee 1', price: 4000, service_id: npaServiceIds.shopee_ga, provider: 'npa' },
     'rent_npa_shopee_2': { name: 'Shopee 2', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_3': { name: 'Shopee 3', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
-    'rent_npa_shopee_4': { name: 'Shopee 4', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_npa_shopee_4': { name: 'Shopee 4', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
     'rent_tt_us10': { name: 'TikTok US 10', price: 1200, service_id: '19272', provider: 'gmailotp' },
@@ -510,7 +510,7 @@ bot.on('callback_query', async (query) => {
           [{ text: '🛍️ Shopee 1 - 4.000đ', callback_data: 'rent_npa_shopee_1' }],
           [{ text: '🛍️ Shopee 2 - 4.000đ', callback_data: 'rent_npa_shopee_2' }],
           [{ text: '🛍️ Shopee 3 - 4.000đ', callback_data: 'rent_npa_shopee_3' }],
-          [{ text: '🛍️ Shopee 4 - 4.000đ', callback_data: 'rent_npa_shopee_4' }],
+          [{ text: '🛍️ Shopee 4 - 2.500đ', callback_data: 'rent_npa_shopee_4' }],
           [{ text: '🛍️ Shopee 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
           [{ text: '🛍️ Shopee 6 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
