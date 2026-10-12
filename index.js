@@ -127,13 +127,14 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// Đặt expires: 600 tương đương 10 phút tự động hủy đơn hàng
 const depositSchema = new mongoose.Schema({
   orderId: { type: String, required: true, unique: true },
   userId: { type: String, required: true },
   amount: { type: Number, required: true },
   content: { type: String, required: true },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 300 }
+  createdAt: { type: Date, default: Date.now, expires: 600 }
 });
 const Deposit = mongoose.model('Deposit', depositSchema);
 
@@ -403,10 +404,12 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   }
 
   caption += `📝 Nội dung: ${content}\n\n` +
-             `⚠️ Không sửa số tiền hoặc nội dung.\n` +
+             `⚠️ Mã QR và nội dung này chỉ có hiệu lực trong vòng **10 PHÚT**.\n` +
+             `⏰ Quá thời gian trên, vui lòng tạo mã QR mới trước khi chuyển!\n` +
              `⏳ Hệ thống sẽ tự cộng tiền sau vài giây khi bạn chuyển khoản thành công!`;
 
   bot.sendPhoto(chatId, qrUrl, {
+    parse_mode: 'Markdown',
     caption: caption,
     reply_markup: {
       inline_keyboard: [
