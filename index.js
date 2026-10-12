@@ -518,14 +518,14 @@ bot.on('callback_query', async (query) => {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🎵 TikTok US 10 - 1.600đ', callback_data: 'rent_tt_us10' }],
-          [{ text: '🎵 TikTok US 9 - 1.600đ', callback_data: 'rent_tt_us9' }],
-          [{ text: '🎵 TikTok Indonesia 21 - 1.600đ', callback_data: 'rent_tt_indo21' }],
-          [{ text: '🎵 TikTok Chile 9 - 1.600đ', callback_data: 'rent_tt_chile9' }],
-          [{ text: '🎵 TikTok Chile 12 - 1.600đ', callback_data: 'rent_tt_chile12' }],
-          [{ text: '🎵 TikTok Chile 7 - 1.600đ', callback_data: 'rent_tt_chile7' }],
-          [{ text: '🎵 TikTok Colombia 7 - 1.600đ', callback_data: 'rent_tt_colombia7' }],
-          [{ text: '🎵 TikTok Colombia 8 - 1.600đ', callback_data: 'rent_tt_colombia8' }],
+          [{ text: '🎵 TikTok US 10 - 1.200đ', callback_data: 'rent_tt_us10' }],
+          [{ text: '🎵 TikTok US 9 - 1.200đ', callback_data: 'rent_tt_us9' }],
+          [{ text: '🎵 TikTok Indonesia 21 - 1.200đ', callback_data: 'rent_tt_indo21' }],
+          [{ text: '🎵 TikTok Chile 9 - 1.200đ', callback_data: 'rent_tt_chile9' }],
+          [{ text: '🎵 TikTok Chile 12 - 1.200đ', callback_data: 'rent_tt_chile12' }],
+          [{ text: '🎵 TikTok Chile 7 - 1.200đ', callback_data: 'rent_tt_chile7' }],
+          [{ text: '🎵 TikTok Colombia 7 - 1.200đ', callback_data: 'rent_tt_colombia7' }],
+          [{ text: '🎵 TikTok Colombia 8 - 1.200đ', callback_data: 'rent_tt_colombia8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
