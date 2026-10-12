@@ -8,9 +8,11 @@ app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
 
+// BIẾN LƯU PHẦN TRĂM KHUYẾN MÃI VÀ HOA HỒNG
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
+// WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY (TPBANK)
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
@@ -48,19 +50,23 @@ app.post('/webhook/sepay', async (req, res) => {
         { new: true, upsert: true }
       );
 
-      let msgText = `🎉 NẠP TIỀN TỰ ĐỘNG THÀNH CÔNG!\n\n` +
-                    `💵 Số tiền chuyển: ${transferAmount.toLocaleString()}đ\n`;
+      let msgText = `🎉 **NẠP TIỀN TỰ ĐỘNG THÀNH CÔNG!**\n\n` +
+                    `💵 Số tiền chuyển: **${transferAmount.toLocaleString()}đ**\n`;
       
       if (bonusAmount > 0) {
-        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): +${bonusAmount.toLocaleString()}đ\n` +
-                   `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
+        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): **+${bonusAmount.toLocaleString()}đ**\n` +
+                   `💰 Tổng nhận vào ví: **+${finalReceiveAmount.toLocaleString()}đ**\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: **+${transferAmount.toLocaleString()}đ**\n`;
       }
 
-      msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
+      msgText += `💳 Số dư ví hiện tại: **${user.balance.toLocaleString()}đ**`;
 
-      bot.sendMessage(pendingDeposit.userId, msgText).catch(() => {});
+      bot.sendMessage(
+        pendingDeposit.userId,
+        msgText,
+        { parse_mode: 'Markdown' }
+      ).catch(() => {});
 
       if (referralCommissionPercent > 0 && user.referredBy) {
         const commission = Math.floor((transferAmount * referralCommissionPercent) / 100);
@@ -74,10 +80,11 @@ app.post('/webhook/sepay', async (req, res) => {
           if (referrer) {
             bot.sendMessage(
               user.referredBy,
-              `🎁 NHẬN HOA HỒNG GIỚI THIỆU!\n\n` +
-              `👤 Bạn bè (ID: ${pendingDeposit.userId}) vừa nạp thành công ${transferAmount.toLocaleString()}đ.\n` +
-              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): +${commission.toLocaleString()}đ\n` +
-              `💳 Số dư ví hiện tại: ${referrer.balance.toLocaleString()}đ`
+              `🎁 **NHẬN HOA HỒNG GIỚI THIỆU!**\n\n` +
+              `👤 Bạn bè (ID: \`${pendingDeposit.userId}\`) vừa nạp thành công **${transferAmount.toLocaleString()}đ**.\n` +
+              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): **+${commission.toLocaleString()}đ**\n` +
+              `💳 Số dư ví hiện tại: **${referrer.balance.toLocaleString()}đ**`,
+              { parse_mode: 'Markdown' }
             ).catch(() => {});
           }
         }
@@ -272,16 +279,16 @@ async function sendMainMenu(chatId, userId) {
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
 
-  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA\n` +
-                 `👤 ID của bạn: ${userId}\n` +
+  let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
+                 `👤 ID của bạn: \`${userId}\`\n` +
                  `💰 Số dư ví: ${userBalance}đ\n` +
                  `💳 Tổng đã nạp: ${userDeposited}đ\n`;
 
   if (depositBonusPercent > 0) {
-    menuText += `🎁 Khuyến mãi nạp hiện tại: Tặng thêm +${depositBonusPercent}% vào ví!\n`;
+    menuText += `🎁 **Khuyến mãi nạp hiện tại:** Tặng thêm **+${depositBonusPercent}%** vào ví!\n`;
   }
 
-  menuText += `\n👉 Mẹo: Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
+  menuText += `\n👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -289,15 +296,17 @@ async function sendMainMenu(chatId, userId) {
     let totalDepositedAll = 0;
     users.forEach(u => { totalDepositedAll += (u.total_deposited || 0); });
 
-    menuText += `\n\n📊 THỐNG KÊ HỆ THỐNG:\n` +
-                `👥 Tổng thành viên: ${totalUsers} người\n` +
-                `💵 Tổng tiền nạp tất cả: ${totalDepositedAll.toLocaleString()}đ\n` +
-                `🎁 Mức khuyến mãi nạp: ${depositBonusPercent}%\n` +
-                `🤝 Hoa hồng giới thiệu: ${referralCommissionPercent}%\n` +
-                `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`;
+    menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
+                `👥 Tổng thành viên: **${totalUsers}** người\n` +
+                `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
+                `🎁 Mức khuyến mãi nạp: **${depositBonusPercent}%**\n` +
+                `🤝 Hoa hồng giới thiệu: **${referralCommissionPercent}%**\n` +
+                `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
   }
 
   bot.sendMessage(chatId, menuText, {
+    parse_mode: 'Markdown',
+    disable_web_page_preview: true,
     reply_markup: {
       inline_keyboard: [
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
@@ -315,7 +324,7 @@ async function sendMainMenu(chatId, userId) {
   });
 }
 
-// GỬI MENU GIỚI THIỆU KHÔNG DÙNG MARKDOWN ĐỂ TRÁNH LỖI HIỂN THỊ
+// XÓA TIN NHẮN CŨ VÀ GỬI MENU GIỚI THIỆU MỚI HOÀN TOÀN
 async function sendReferralMenu(chatId, userId, messageId) {
   userState.delete(userId);
   const user = await getUser(userId);
@@ -323,13 +332,13 @@ async function sendReferralMenu(chatId, userId, messageId) {
   const totalComm = (user.total_commission || 0).toLocaleString();
   const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
-  const text = `🔗 GIỚI THIỆU BẠN BÈ\n` +
-               `-----------------------------------\n\n` +
-               `Chia sẻ link dưới đây cho bạn bè. Khi họ nạp tiền, bạn tự động nhận ${referralCommissionPercent}% hoa hồng mỗi lần họ nạp tiền.\n\n` +
-               `👥 Đã giới thiệu: ${refCount} người\n` +
-               `💰 Tổng hoa hồng đã nhận: ${totalComm}đ\n\n` +
-               `🔗 Link giới thiệu của bạn:\n` +
-               `${refLink}`;
+  const text = `🔗 **GIỚI THIỆU BẠN BÈ**\n` +
+               `___________________________________\n\n` +
+               `Chia sẻ link dưới đây cho bạn bè. Khi họ nạp tiền, bạn tự động nhận **${referralCommissionPercent}%** hoa hồng mỗi lần họ nạp tiền.\n\n` +
+               `👥 Đã giới thiệu: **${refCount} người**\n` +
+               `💰 Tổng hoa hồng đã nhận: **${totalComm}đ**\n\n` +
+               `🔗 **Link giới thiệu của bạn:**\n` +
+               `\`${refLink}\``;
 
   const shareText = encodeURIComponent(`🤖 Thuê số OTP tự động giá siêu rẻ & lấy mã 2FA cực nhanh tại đây: ${refLink}`);
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
@@ -341,18 +350,21 @@ async function sendReferralMenu(chatId, userId, messageId) {
     ]
   };
 
+  // Xóa menu cũ để không bị kẹt
   bot.deleteMessage(chatId, messageId).catch(() => {});
 
+  // Gửi tin nhắn mới
   bot.sendMessage(chatId, text, {
+    parse_mode: 'Markdown',
     reply_markup: replyMarkup,
     disable_web_page_preview: true
   });
 }
 
 async function sendDepositMenu(chatId, messageId = null) {
-  let text = `💰 NẠP TIỀN TỰ ĐỘNG\n`;
+  let text = `💰 **NẠP TIỀN TỰ ĐỘNG**\n`;
   if (depositBonusPercent > 0) {
-    text += `🎁 Đang có chương trình khuyến mãi: Tặng ngay +${depositBonusPercent}% giá trị nạp!\n\n`;
+    text += `🎁 **Đang có chương trình khuyến mãi: Tặng ngay +${depositBonusPercent}% giá trị nạp!**\n\n`;
   }
   text += `Chọn nhanh số tiền hoặc bấm nhập số tiền khác (Tối thiểu 10.000đ):`;
 
@@ -372,9 +384,9 @@ async function sendDepositMenu(chatId, messageId = null) {
   };
 
   if (messageId) {
-    bot.editMessageText(text, { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup }).catch(() => {});
+    bot.editMessageText(text, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown', reply_markup: replyMarkup }).catch(() => {});
   } else {
-    bot.sendMessage(chatId, text, { reply_markup: replyMarkup });
+    bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: replyMarkup });
   }
 }
 
@@ -389,25 +401,26 @@ async function createAndSendQR(chatId, userId, amount) {
   const accountName = 'DINH CONG HOAT';
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
-  let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (TPBANK)\n\n` +
-                `🏛️ Ngân hàng: TPBank\n` +
-                `💳 Số tài khoản: ${accountNo}\n` +
-                `👤 Chủ tài khoản: ${accountName}\n` +
-                `💵 Số tiền: ${amount.toLocaleString()}đ\n`;
+  let caption = `💰 **THÔNG TIN CHUYỂN KHOẢN (TPBANK)**\n\n` +
+                `🏛️ Ngân hàng: **TPBank**\n` +
+                `💳 Số tài khoản: \`${accountNo}\`\n` +
+                `👤 Chủ tài khoản: **${accountName}**\n` +
+                `💵 Số tiền: **${amount.toLocaleString()}đ**\n`;
 
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): +${bonusVal.toLocaleString()}đ\n` +
-               `💰 Nhận thực tế vào ví: ${totalVal.toLocaleString()}đ\n`;
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): **+${bonusVal.toLocaleString()}đ**\n` +
+               `💰 Nhận thực tế vào ví: **${totalVal.toLocaleString()}đ**\n`;
   }
 
-  caption += `📝 Nội dung: ${content}\n\n` +
-             `⚠️ Không sửa số tiền hoặc nội dung.\n` +
+  caption += `📝 Nội dung: \`${content}\`\n\n` +
+             `⚠️ *Không sửa số tiền hoặc nội dung.*\n` +
              `⏳ Hệ thống sẽ tự cộng tiền sau vài giây khi bạn chuyển khoản thành công!`;
 
   bot.sendPhoto(chatId, qrUrl, {
     caption: caption,
+    parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
         [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
@@ -426,7 +439,11 @@ bot.on('message', async (msg) => {
   if (!text) return;
 
   if (isMaintenanceMode && userId !== ADMIN_ID) {
-    return bot.sendMessage(chatId, `🛠️ HỆ THỐNG ĐANG BẢO TRÌ\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`);
+    return bot.sendMessage(
+      chatId, 
+      `🛠️ **HỆ THỐNG ĐANG BẢO TRÌ**\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`,
+      { parse_mode: 'Markdown' }
+    );
   }
 
   if (checkSpam(userId)) {
@@ -444,7 +461,7 @@ bot.on('message', async (msg) => {
           await User.create({ userId: userId, balance: 0, total_deposited: 0, referredBy: inviterId });
           await User.updateOne({ userId: inviterId }, { $inc: { referralCount: 1 } });
 
-          bot.sendMessage(inviterId, `🎉 BẠN CÓ THÀNH VIÊN MỚI!\nUser ${userId} vừa tham gia bot qua link giới thiệu của bạn.`).catch(() => {});
+          bot.sendMessage(inviterId, `🎉 **BẠN CÓ THÀNH VIÊN MỚI!**\nUser \`${userId}\` vừa tham gia bot qua link giới thiệu của bạn.`, { parse_mode: 'Markdown' }).catch(() => {});
         }
       }
     }
@@ -457,11 +474,11 @@ bot.on('message', async (msg) => {
     const percent = parseInt(parts[1], 10);
 
     if (isNaN(percent) || percent < 0) {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n\nVui lòng cài đặt bằng cú pháp:\n- Đặt 10% hoa hồng: /hoahong 10\n- Tắt hoa hồng: /hoahong 0`);
+      return bot.sendMessage(chatId, `⚠️ **Cú pháp không hợp lệ!**\n\nVui lòng cài đặt bằng cú pháp:\n- Đặt 10% hoa hồng: \`/hoahong 10\`\n- Tắt hoa hồng: \`/hoahong 0\``, { parse_mode: 'Markdown' });
     }
 
     referralCommissionPercent = percent;
-    return bot.sendMessage(chatId, `✅ Đã cập nhật tỷ lệ hoa hồng giới thiệu: ${percent}% cho mỗi lần bạn bè nạp tiền.`);
+    return bot.sendMessage(chatId, `✅ **Đã cập nhật tỷ lệ hoa hồng giới thiệu:** **${percent}%** cho mỗi lần bạn bè nạp tiền.`);
   }
 
   if (text.startsWith('/km')) {
@@ -470,14 +487,14 @@ bot.on('message', async (msg) => {
     const percent = parseInt(parts[1], 10);
 
     if (isNaN(percent) || percent < 0) {
-      return bot.sendMessage(chatId, `⚠️ Định dạng không hợp lệ!\n\nVui lòng nhập đúng cú pháp:\n- Bật khuyến mãi 10%: /km 10\n- Tắt khuyến mãi: /km 0`);
+      return bot.sendMessage(chatId, `⚠️ **Định dạng không hợp lệ!**\n\nVui lòng nhập đúng cú pháp:\n- Bật khuyến mãi 10%: \`/km 10\`\n- Tắt khuyến mãi: \`/km 0\``, { parse_mode: 'Markdown' });
     }
 
     depositBonusPercent = percent;
     if (percent > 0) {
-      return bot.sendMessage(chatId, `🎁 Đã cập nhật khuyến mãi nạp tiền!\nTừ bây giờ mỗi khi khách nạp tiền sẽ được tặng thêm +${percent}% vào ví.`);
+      return bot.sendMessage(chatId, `🎁 **Đã cập nhật khuyến mãi nạp tiền!**\nTừ bây giờ mỗi khi khách nạp tiền sẽ được tặng thêm **+${percent}%** vào ví.`);
     } else {
-      return bot.sendMessage(chatId, `❌ Đã tắt chương trình khuyến mãi nạp tiền.`);
+      return bot.sendMessage(chatId, `❌ **Đã tắt chương trình khuyến mãi nạp tiền.**`);
     }
   }
 
@@ -488,12 +505,12 @@ bot.on('message', async (msg) => {
 
     if (status === 'on') {
       isMaintenanceMode = true;
-      return bot.sendMessage(chatId, `🔴 Đã BẬT chế độ bảo trì! Thành viên thường sẽ không sử dụng được bot. Chỉ có Admin được phép thao tác.`);
+      return bot.sendMessage(chatId, `🔴 **Đã BẬT chế độ bảo trì!** Thành viên thường sẽ không sử dụng được bot. Chỉ có Admin được phép thao tác.`);
     } else if (status === 'off') {
       isMaintenanceMode = false;
-      return bot.sendMessage(chatId, `🟢 Đã TẮT chế độ bảo trì! Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
+      return bot.sendMessage(chatId, `🟢 **Đã TẮT chế độ bảo trì!** Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
     } else {
-      return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
+      return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**\n\n👉 Cách dùng:\n- Bật: \`/baotri on\`\n- Tắt: \`/baotri off\``, { parse_mode: 'Markdown' });
     }
   }
 
@@ -502,7 +519,7 @@ bot.on('message', async (msg) => {
     const customAmount = parseInt(cleanNumberText, 10);
 
     if (isNaN(customAmount) || customAmount < 10000) {
-      return bot.sendMessage(chatId, `⚠️ Số tiền không hợp lệ!\n\nVui lòng nhập số tiền từ 10.000đ trở lên (Ví dụ gửi: 15000 hoặc 200000):`);
+      return bot.sendMessage(chatId, `⚠️ **Số tiền không hợp lệ!**\n\nVui lòng nhập số tiền từ **10.000đ** trở lên (Ví dụ gửi: \`15000\` hoặc \`200000\`):`, { parse_mode: 'Markdown' });
     }
 
     userState.delete(userId);
@@ -527,8 +544,8 @@ bot.on('message', async (msg) => {
         try {
           await bot.sendMessage(
             u.userId,
-            `📢 THÔNG BÁO TỪ HỆ THỐNG\n\n${messageContent}`,
-            { disable_web_page_preview: true }
+            `📢 **THÔNG BÁO TỪ HỆ THỐNG**\n\n${messageContent}`,
+            { parse_mode: 'Markdown', disable_web_page_preview: true }
           );
           successCount++;
           await new Promise(resolve => setTimeout(resolve, 50));
@@ -537,7 +554,7 @@ bot.on('message', async (msg) => {
         }
       }
 
-      bot.sendMessage(chatId, `✅ GỬI THÔNG BÁO HOÀN TẤT!\n- Thành công: ${successCount}\n- Thất bại (chặn bot): ${failCount}`);
+      bot.sendMessage(chatId, `✅ **GỬI THÔNG BÁO HOÀN TẤT!**\n- Thành công: ${successCount}\n- Thất bại (chặn bot): ${failCount}`, { parse_mode: 'Markdown' });
     } catch (err) {
       bot.sendMessage(chatId, `❌ Lỗi khi gửi thông báo hàng loạt.`);
     }
@@ -548,9 +565,11 @@ bot.on('message', async (msg) => {
   if (!isJoined) {
     return bot.sendMessage(
       chatId, 
-      `⚠️ BẠN CHƯA THAM GIA NHÓM!\n\n` +
+      `⚠️ **BẠN CHƯA THAM GIA NHÓM!**\n\n` +
       `👉 Vui lòng tham gia nhóm chính thức của hệ thống để sử dụng đầy đủ các tính năng thuê số và nạp tiền tự động.`,
       {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true,
         reply_markup: {
           inline_keyboard: [
             [{ text: '🔗 Tham gia nhóm ngay', url: INVITE_LINK }],
@@ -576,8 +595,8 @@ bot.on('message', async (msg) => {
         { $inc: { balance: amount, total_deposited: amount } },
         { new: true, upsert: true }
       );
-      bot.sendMessage(chatId, `✅ Đã nạp +${amount.toLocaleString()}đ cho user ${targetUserId}`);
-      bot.sendMessage(targetUserId, `🎉 Tài khoản được cộng: +${amount.toLocaleString()}đ\n💰 Số dư: ${user.balance.toLocaleString()}đ`).catch(() => {});
+      bot.sendMessage(chatId, `✅ Đã nạp +${amount.toLocaleString()}đ cho user \`${targetUserId}\``, { parse_mode: 'Markdown' });
+      bot.sendMessage(targetUserId, `🎉 Tài khoản được cộng: **+${amount.toLocaleString()}đ**\n💰 Số dư: ${user.balance.toLocaleString()}đ`, { parse_mode: 'Markdown' }).catch(() => {});
     }
     return;
   }
@@ -590,7 +609,7 @@ bot.on('message', async (msg) => {
   if (cleanSecret.length >= 16) {
     try {
       const token2fa = authenticator.generate(cleanSecret);
-      return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: ${cleanSecret}\n✅ OTP: ${token2fa}`);
+      return bot.sendMessage(chatId, `🔐 **MÃ 2FA:**\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
     } catch (err) {}
   } else {
     bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ! Vui lòng kiểm tra lại.`);
@@ -633,9 +652,10 @@ bot.on('callback_query', async (query) => {
     userState.set(userId, 'awaiting_deposit_amount');
     return bot.sendMessage(
       chatId,
-      `✏️ NHẬP SỐ TIỀN BẠN MUỐN NẠP\n\n` +
-      `👉 Vui lòng dán/nhập số tiền muốn nạp vào ô tin nhắn bên dưới (Tối thiểu 10.000đ).\n` +
-      `*Ví dụ:* Nhập 15000 hoặc 500000`
+      `✏️ **NHẬP SỐ TIỀN BẠN MUỐN NẠP**\n\n` +
+      `👉 Vui lòng dán/nhập số tiền muốn nạp vào ô tin nhắn bên dưới (Tối thiểu **10.000đ**).\n` +
+      `*Ví dụ:* Nhập \`15000\` hoặc \`500000\``,
+      { parse_mode: 'Markdown' }
     );
   }
 
@@ -653,8 +673,8 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE`, {
-      chat_id: chatId, message_id: messageId,
+    return bot.editMessageText(`🛍️ **CHỌN DỊCH VỤ SHOPEE**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee 0 - 4.000đ', callback_data: 'rent_npa_shopee_0' }],
@@ -671,8 +691,8 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'menu_tiktok') {
-    return bot.editMessageText(`🎵 CHỌN MÃ VÙNG TIKTOK`, {
-      chat_id: chatId, message_id: messageId,
+    return bot.editMessageText(`🎵 **CHỌN MÃ VÙNG TIKTOK**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🎵 TikTok US 10 - 1.200đ', callback_data: 'rent_tt_us10' }],
@@ -690,8 +710,8 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'menu_grab') {
-    return bot.editMessageText(`🚗 CHỌN DỊCH VỤ GRAB`, {
-      chat_id: chatId, message_id: messageId,
+    return bot.editMessageText(`🚗 **CHỌN DỊCH VỤ GRAB**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🚗 Grab V1 - 3.000đ', callback_data: 'rent_npa_grab_v1' }],
@@ -702,8 +722,8 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'menu_npa') {
-    return bot.editMessageText(`⚡ DANH SÁCH DỊCH VỤ KHÁC`, {
-      chat_id: chatId, message_id: messageId,
+    return bot.editMessageText(`⚡ **DANH SÁCH DỊCH VỤ KHÁC**`, {
+      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [{ text: '⚡ Lotteria - 3.000đ', callback_data: 'rent_npa_lotteria' }],
@@ -734,7 +754,7 @@ bot.on('callback_query', async (query) => {
     const isAdmin = (userId === ADMIN_ID);
 
     if (!isAdmin && user.balance < price) {
-      return bot.sendMessage(chatId, `❌ Số dư không đủ! Cần tối thiểu ${price.toLocaleString()}đ.`);
+      return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
     let updatedUser = user;
@@ -783,12 +803,13 @@ bot.on('callback_query', async (query) => {
 
       await bot.sendMessage(
         chatId,
-        `✅ THUÊ SỐ THÀNH CÔNG!\n\n` +
-        `🌐 Dịch vụ: ${countryLabel}\n` +
-        `📞 Số điện thoại: ${rawPhone}\n` +
-        `🆔 Mã đơn: ${reqId}\n` +
-        `💰 Số dư còn lại: ${balanceDisplay}\n\n` +
-        `⏳ Đang chờ mã OTP (tối đa 5 phút)...`
+        `✅ **THUÊ SỐ THÀNH CÔNG!**\n\n` +
+        `🌐 **Dịch vụ:** ${countryLabel}\n` +
+        `📞 **Số điện thoại:** \`${rawPhone}\`\n` +
+        `🆔 **Mã đơn:** \`${reqId}\`\n` +
+        `💰 **Số dư còn lại:** ${balanceDisplay}\n\n` +
+        `⏳ *Đang chờ mã OTP (tối đa 5 phút)...*`,
+        { parse_mode: 'Markdown' }
       );
 
       let isCompleted = false;
@@ -822,4 +843,50 @@ bot.on('callback_query', async (query) => {
             
             bot.sendMessage(
               chatId,
-              `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${req
+              `🎉 **ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN \`${reqId}\`**\n🔑 Mã OTP: \`${otpCode}\``,
+              {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
+                }
+              }
+            ).catch(() => {});
+          }
+        } catch (e) {}
+      }, 10000);
+
+      const timeoutRefund = setTimeout(async () => {
+        if (isCompleted) return;
+        isCompleted = true;
+        clearInterval(checkInterval);
+
+        if (provider === 'gmailotp' && reqId !== 'N/A') {
+          axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY_GMAILOTP}&id=${reqId}`).catch(() => {});
+        }
+
+        let refundMsg = `⏰ **ĐÃ HẾT 5 PHÚT!** Đơn hàng \`${reqId}\` đã được hoàn tiền **${price.toLocaleString()}đ** vào ví.`;
+        if (isAdmin) {
+          refundMsg = `⏰ **ĐÃ HẾT 5 PHÚT!** Đã hủy đơn hàng \`${reqId}\` (Tài khoản Admin miễn phí).`;
+        } else {
+          await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+        }
+
+        bot.sendMessage(chatId, refundMsg, {
+          parse_mongo: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
+          }
+        }).catch(() => {});
+
+      }, 300 * 1000);
+
+    } catch (err) {
+      if (!isAdmin) {
+        await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+      }
+      bot.sendMessage(chatId, `❌ Lỗi máy chủ, hệ thống đã hoàn lại tiền vào ví cho bạn!`);
+    }
+  }
+});
+
+console.log('Bot đang chạy...');
