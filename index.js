@@ -22,6 +22,14 @@ function removeAccentsAndUpperCase(str) {
     .trim();
 }
 
+// HÀM GIẢI MÃ QUOTED-PRINTABLE (XỬ LÝ DỮ LIỆU EMAIL MÃ HÓA)
+function decodeQuotedPrintable(str) {
+  if (!str) return '';
+  return str
+    .replace(/=[\r\n]+/g, '')
+    .replace(/=([0-9A-F]{2})/gi, (match, p1) => String.fromCharCode(parseInt(p1, 16)));
+}
+
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
@@ -221,7 +229,7 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE (QUÉT TRỰC TIẾP TIÊU ĐỀ THƯ)
+// HÀM LẤY OTP EMAILFAKE GIẢI MÃ TOÀN BỘ EMAIL
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
@@ -242,29 +250,35 @@ async function getEmailFakeOTP(emailStr) {
     });
 
     if (res.data) {
-      const $ = cheerio.load(res.data);
-      
-      let foundOtp = null;
+      // 1. Giải mã Quoted-printable dữ liệu email
+      const decodedHtml = decodeQuotedPrintable(String(res.data));
+      const $ = cheerio.load(decodedHtml);
 
-      // Quét tất cả các thẻ có chứa nội dung tiêu đề thư
-      $('tr, td, span, div, a').each((i, el) => {
-        if (foundOtp) return;
-        const text = $(el).text();
-        
-        // Tìm kiếm mã 6 chữ số xuất hiện trong tiêu đề thư
-        const match6 = text.match(/\b\d{6}\b/);
-        if (match6) {
-          foundOtp = match6[0];
+      // 2. Tìm kiếm mã 6 số trong cấu trúc HTML của TikTok: Mã gồm 6 chữ số của bạn là: 970025
+      const tiktokMatch = decodedHtml.match(/Mã gồm 6 chữ số[^\d]*(\d{6})/i) || 
+                          decodedHtml.match(/mã là[^\d]*(\d{6})/i) ||
+                          decodedHtml.match(/code is[^\d]*(\d{6})/i);
+
+      if (tiktokMatch && tiktokMatch[1]) {
+        return tiktokMatch[1];
+      }
+
+      // 3. Quét các thẻ span/b có độ dài 6 chữ số
+      let matchedCode = null;
+      $('span, b, td, p, div').each((i, el) => {
+        if (matchedCode) return;
+        const text = $(el).text().trim();
+        if (/^\d{6}$/.test(text)) {
+          matchedCode = text;
         }
       });
 
-      if (foundOtp) return foundOtp;
+      if (matchedCode) return matchedCode;
 
-      // Dự phòng quét toàn bộ text trang web
-      const pageText = $('body').text() || String(res.data);
-      const fallbackMatch = pageText.match(/\b\d{6}\b/);
-      if (fallbackMatch) {
-        return fallbackMatch[0];
+      // 4. Quét fallback từ Subject/Header
+      const headerMatch = decodedHtml.match(/Subject:\s*(\d{6})/i);
+      if (headerMatch && headerMatch[1]) {
+        return headerMatch[1];
       }
     }
     return null;
