@@ -221,7 +221,7 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE (LỌC LẤY CHUẨN MÃ OTP 6 CHỮ SỐ CỦA TIKTOK/ĐƠN VỊ)
+// HÀM LẤY OTP EMAILFAKE (QUÉT TRỰC TIẾP TIÊU ĐỀ THƯ)
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
@@ -244,27 +244,27 @@ async function getEmailFakeOTP(emailStr) {
     if (res.data) {
       const $ = cheerio.load(res.data);
       
-      // Bỏ phần thẻ rác có chứa mốc thời gian gây nhầm lẫn
-      $('script, style, header, footer, .time').remove();
-      
+      let foundOtp = null;
+
+      // Quét tất cả các thẻ có chứa nội dung tiêu đề thư
+      $('tr, td, span, div, a').each((i, el) => {
+        if (foundOtp) return;
+        const text = $(el).text();
+        
+        // Tìm kiếm mã 6 chữ số xuất hiện trong tiêu đề thư
+        const match6 = text.match(/\b\d{6}\b/);
+        if (match6) {
+          foundOtp = match6[0];
+        }
+      });
+
+      if (foundOtp) return foundOtp;
+
+      // Dự phòng quét toàn bộ text trang web
       const pageText = $('body').text() || String(res.data);
-
-      // 1. Ưu tiên tìm mã 6 số đứng sau chữ "là:", "is:", "mã:", "code:"
-      const tiktokMatch = pageText.match(/(?:mã|code|is|là)[:\s]+(\d{6})/i);
-      if (tiktokMatch && tiktokMatch[1]) {
-        return tiktokMatch[1];
-      }
-
-      // 2. Dự phòng: Quét chính xác chuỗi 6 chữ số bất kỳ
-      const match6Digits = pageText.match(/\b\d{6}\b/);
-      if (match6Digits) {
-        return match6Digits[0];
-      }
-
-      // 3. Dự phòng cuối: Bắt mã từ 4 đến 8 chữ số
-      const matchAny = pageText.match(/\b\d{4,8}\b/);
-      if (matchAny) {
-        return matchAny[0];
+      const fallbackMatch = pageText.match(/\b\d{6}\b/);
+      if (fallbackMatch) {
+        return fallbackMatch[0];
       }
     }
     return null;
