@@ -11,7 +11,6 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
-// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA
 function removeAccentsAndUpperCase(str) {
   if (!str) return '';
   return str
@@ -221,21 +220,25 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE
+// HÀM LẤY OTP EMAILFAKE MỚI
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
     if (!cleanEmail.includes('@')) return null;
-    const parts = cleanEmail.split('@');
-    const username = parts[0];
-    const domain = parts[1];
 
-    const targetUrl = `https://checkotpmail.com/api/get_otp?email=${encodeURIComponent(cleanEmail)}&user=${encodeURIComponent(username)}&domain=${encodeURIComponent(domain)}`;
-    const res = await axios.get(targetUrl, { timeout: 8000 });
-    
+    const res = await axios.get(`https://checkotpmail.com/api/get_code.php?mail=${encodeURIComponent(cleanEmail)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Referer': 'https://checkotpmail.com/'
+      },
+      timeout: 8000
+    });
+
     if (res.data) {
-      if (res.data.otp) return res.data.otp;
-      if (res.data.code) return res.data.code;
+      if (typeof res.data === 'object') {
+        const code = res.data.code || res.data.otp || res.data.data;
+        if (code) return code;
+      }
       if (typeof res.data === 'string') {
         const match = res.data.match(/\b\d{4,8}\b/);
         if (match) return match[0];
@@ -251,12 +254,19 @@ async function getEmailFakeOTP(emailStr) {
 async function getHotmailOTP(dataLine) {
   try {
     const cleanData = dataLine.trim();
-    const targetUrl = `https://checkotpmail.com/api/get_otp_hotmail?data=${encodeURIComponent(cleanData)}`;
-    const res = await axios.get(targetUrl, { timeout: 10000 });
+    const res = await axios.get(`https://checkotpmail.com/api/get_hotmail.php?data=${encodeURIComponent(cleanData)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'Referer': 'https://checkotpmail.com/'
+      },
+      timeout: 10000
+    });
 
     if (res.data) {
-      if (res.data.otp) return res.data.otp;
-      if (res.data.code) return res.data.code;
+      if (typeof res.data === 'object') {
+        const code = res.data.code || res.data.otp || res.data.data;
+        if (code) return code;
+      }
       if (typeof res.data === 'string') {
         const match = res.data.match(/\b\d{4,8}\b/);
         if (match) return match[0];
