@@ -204,7 +204,6 @@ function getServiceInfo(action) {
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
     
-    // CAP NHAT 8 SERVICE ID TIKTOK MOI MOI
     'rent_tt_us10': { name: 'TikTok US 10', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US 9', price: 1200, service_id: '19194', provider: 'gmailotp' },
     'rent_tt_indo19': { name: 'TikTok Indonesia 19', price: 1200, service_id: '19173', provider: 'gmailotp' },
@@ -580,7 +579,6 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // MENU TIKTOK VOI DANH SACH NUT BAM VA SERVICE ID MOI
   if (action === 'menu_tiktok') {
     return bot.editMessageText(`🎵 **CHỌN MÃ VÙNG TIKTOK**`, {
       chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
@@ -672,8 +670,8 @@ bot.on('callback_query', async (query) => {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
-          const errorMsg = resData.message || resData.msg || 'Hết số';
-          return bot.sendMessage(chatId, `❌ Không thể thuê số: ${errorMsg}`);
+          // GIẤU THÔNG BÁO LỖI LỘ WEB BÊN THỨ 3
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       } else if (provider === 'npa') {
         const apiResponse = await axios.post(`https://otpapi.cmsnpa.com/api/v1/get_number`, { server: serviceId }, {
@@ -687,8 +685,8 @@ bot.on('callback_query', async (query) => {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
-          const errorMsg = resData.Msg || 'Hết số';
-          return bot.sendMessage(chatId, `❌ Không thể thuê số: ${errorMsg}`);
+          // GIẤU THÔNG BÁO LỖI LỘ WEB BÊN THỨ 3
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       }
 
