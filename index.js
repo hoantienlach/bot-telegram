@@ -398,7 +398,7 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // LỘC CHUỖI 2FA SIÊU SẠCH: CHỈ GIỮ LẠI CÁC KÝ TỰ VALID BASE32 (A-Z VÀ 2-7)
+  // LỌC CHUỖI 2FA SIÊU SẠCH: CHỈ GIỮ LẠI CÁC KÝ TỰ VALID BASE32 (A-Z VÀ 2-7)
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
@@ -582,6 +582,16 @@ bot.on('callback_query', async (query) => {
       return bot.sendMessage(chatId, `❌ **Số dư không đủ!** Cần tối thiểu ${price.toLocaleString()}đ.`, { parse_mode: 'Markdown' });
     }
 
+    // Trừ tiền trước
+    let updatedUser = user;
+    if (!isAdmin) {
+      updatedUser = await User.findOneAndUpdate(
+        { userId: userId },
+        { $inc: { balance: -price } },
+        { new: true }
+      );
+    }
+
     try {
       let rawPhone = '';
       let reqId = '';
@@ -594,7 +604,12 @@ bot.on('callback_query', async (query) => {
           rawPhone = resData.number || '';
           reqId = resData.request_id || 'N/A';
         } else {
-          return bot.sendMessage(chatId, `❌ ${resData.message || resData.msg || 'Hết số'}`);
+          // Hoàn tiền nếu hết số
+          if (!isAdmin) {
+            await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+          }
+          const errorMsg = resData.message || resData.msg || 'Hết số';
+          return bot.sendMessage(chatId, `❌ Không thể thuê số: ${errorMsg}`);
         }
       } else if (provider === 'npa') {
         const apiResponse = await axios.post(`https://otpapi.cmsnpa.com/api/v1/get_number`, { server: serviceId }, {
@@ -605,17 +620,13 @@ bot.on('callback_query', async (query) => {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
         } else {
-          return bot.sendMessage(chatId, `❌ ${resData.Msg || 'Hết số'}`);
+          // Hoàn tiền nếu hết số
+          if (!isAdmin) {
+            await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+          }
+          const errorMsg = resData.Msg || 'Hết số';
+          return bot.sendMessage(chatId, `❌ Không thể thuê số: ${errorMsg}`);
         }
-      }
-
-      let updatedUser = user;
-      if (!isAdmin) {
-        updatedUser = await User.findOneAndUpdate(
-          { userId: userId },
-          { $inc: { balance: -price } },
-          { new: true }
-        );
       }
 
       const balanceDisplay = isAdmin ? "Miễn phí (Admin)" : `${updatedUser.balance.toLocaleString()}đ`;
@@ -700,7 +711,11 @@ bot.on('callback_query', async (query) => {
       }, 300 * 1000);
 
     } catch (err) {
-      bot.sendMessage(chatId, `❌ Lỗi máy chủ!`);
+      // Hoàn tiền nếu lỗi hệ thống/server
+      if (!isAdmin) {
+        await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+      }
+      bot.sendMessage(chatId, `❌ Lỗi máy chủ, hệ thống đã hoàn lại tiền vào ví cho bạn!`);
     }
   }
 });
