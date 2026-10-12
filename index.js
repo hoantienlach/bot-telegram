@@ -220,70 +220,28 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE MỚI
+// HÀM LẤY OTP EMAILFAKE (TƯƠNG THÍCH EMAILFAKE.COM)
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
     if (!cleanEmail.includes('@')) return null;
 
     const parts = cleanEmail.split('@');
-    const usr = parts[0];
-    const dmn = parts[1];
+    const user = parts[0];
+    const domain = parts[1];
 
-    try {
-      const url1 = `https://checkotpmail.com/api/get_otp.php?email=${encodeURIComponent(cleanEmail)}&user=${encodeURIComponent(usr)}&domain=${encodeURIComponent(dmn)}`;
-      const res1 = await axios.get(url1, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://checkotpmail.com/'
-        },
-        timeout: 8000
-      });
-
-      if (res1.data) {
-        let textData = typeof res1.data === 'object' ? JSON.stringify(res1.data) : String(res1.data);
-        const match = textData.match(/\b\d{4,8}\b/);
-        if (match) return match[0];
-      }
-    } catch (e1) {}
-
-    try {
-      const url2 = `https://generator.email/demo_get_email.php?usr=${encodeURIComponent(usr)}&dmn=${encodeURIComponent(dmn)}`;
-      const res2 = await axios.get(url2, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Cookie': `embx=%5B%22${encodeURIComponent(cleanEmail)}%22%5D; surl=${encodeURIComponent(dmn)}/${encodeURIComponent(usr)}`
-        },
-        timeout: 8000
-      });
-
-      if (res2.data) {
-        const textData = String(res2.data);
-        const match = textData.match(/\b\d{4,8}\b/);
-        if (match) return match[0];
-      }
-    } catch (e2) {}
-
-    return null;
-  } catch (err) {
-    return null;
-  }
-}
-
-// HÀM LẤY OTP HOTMAIL
-async function getHotmailOTP(dataLine) {
-  try {
-    const cleanData = dataLine.trim();
-    const res = await axios.get(`https://checkotpmail.com/api/get_hotmail.php?data=${encodeURIComponent(cleanData)}`, {
+    const targetUrl = `https://emailfake.com/${domain}/${user}`;
+    
+    const res = await axios.get(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Referer': 'https://checkotpmail.com/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://emailfake.com/'
       },
       timeout: 10000
     });
 
     if (res.data) {
-      let textData = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data);
+      const textData = String(res.data);
       const match = textData.match(/\b\d{4,8}\b/);
       if (match) return match[0];
     }
@@ -348,7 +306,7 @@ async function sendMainMenu(chatId, userId) {
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
 
-  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA & MAIL OTP\n` +
+  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA & EMAILFAKE\n` +
                  `👤 ID của bạn: ${userId}\n` +
                  `💰 Số dư ví: ${userBalance}đ\n` +
                  `💳 Tổng đã nạp: ${userDeposited}đ\n`;
@@ -359,8 +317,7 @@ async function sendMainMenu(chatId, userId) {
 
   menuText += `\n⚡ DÁN TRỰC TIẾP DỮ LIỆU VÀO ĐÂY:\n` +
               `• Secret Key 2FA -> Mã OTP 6 số\n` +
-              `• EmailFake -> Lấy OTP EmailFake\n` +
-              `• Data Hotmail -> Lấy OTP Hotmail`;
+              `• Email Fake -> Lấy OTP tự động từ emailfake.com`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -696,36 +653,12 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // 1. TỰ ĐỘNG NHẬN DIỆN LẤY OTP HOTMAIL
-  if (text.includes('|') && (text.toLowerCase().includes('hotmail') || text.toLowerCase().includes('outlook') || text.split('|').length >= 3)) {
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    let results = [];
-
-    bot.sendMessage(chatId, `⏳ Đang quét OTP Hotmail cho ${lines.length} dòng dữ liệu...`);
-
-    for (const line of lines) {
-      const otp = await getHotmailOTP(line);
-      const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      const displayAccount = emailMatch ? emailMatch[0] : line.substring(0, 20) + '...';
-
-      if (otp) {
-        results.push(`📬 Hotmail: \`${displayAccount}\`\n🔑 Mã OTP: \`${otp}\``);
-      } else {
-        results.push(`📬 Hotmail: \`${displayAccount}\`\n❌ Chưa có OTP (hoặc token lỗi)`);
-      }
-    }
-
-    if (results.length > 0) {
-      return bot.sendMessage(chatId, `📩 **KẾT QUẢ QUÉT OTP HOTMAIL:**\n\n` + results.join('\n\n'), { parse_mode: 'Markdown' });
-    }
-  }
-
-  // 2. TỰ ĐỘNG NHẬN DIỆN LẤY OTP EMAILFAKE
+  // 1. TỰ ĐỘNG NHẬN DIỆN LẤY OTP EMAILFAKE (EMAILFAKE.COM)
   if (text.includes('@')) {
     const lines = text.split('\n').filter(l => l.trim().length > 0);
     let results = [];
 
-    bot.sendMessage(chatId, `⏳ Đang quét OTP EmailFake cho ${lines.length} dòng dữ liệu...`);
+    bot.sendMessage(chatId, `⏳ Đang quét OTP từ emailfake.com cho ${lines.length} dòng dữ liệu...`);
 
     for (const line of lines) {
       const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -745,7 +678,7 @@ bot.on('message', async (msg) => {
     }
   }
 
-  // 3. TỰ ĐỘNG NHẬN DIỆN LẤY MÃ 2FA
+  // 2. TỰ ĐỘNG NHẬN DIỆN LẤY MÃ 2FA
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
@@ -755,7 +688,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
     } catch (err) {}
   } else {
-    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA, EmailFake, hoặc Data Hotmail để lấy OTP.`);
+    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA hoặc Email Fake từ emailfake.com để lấy OTP.`);
   }
 });
 
