@@ -8,6 +8,9 @@ app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
 
+// BIẾN LƯU PHẦN TRĂM KHUYẾN MÃI (Mặc định là 0 - Không khuyến mãi)
+let depositBonusPercent = 0;
+
 // WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY (TPBANK)
 app.post('/webhook/sepay', async (req, res) => {
   try {
@@ -32,17 +35,36 @@ app.post('/webhook/sepay', async (req, res) => {
       pendingDeposit.status = 'success';
       await pendingDeposit.save();
 
+      // TÍNH TOÁN TIỀN KHUYẾN MÃI
+      let finalReceiveAmount = transferAmount;
+      let bonusAmount = 0;
+
+      if (depositBonusPercent > 0) {
+        bonusAmount = Math.floor((transferAmount * depositBonusPercent) / 100);
+        finalReceiveAmount = transferAmount + bonusAmount;
+      }
+
       const user = await User.findOneAndUpdate(
         { userId: pendingDeposit.userId },
-        { $inc: { balance: transferAmount, total_deposited: transferAmount } },
+        { $inc: { balance: finalReceiveAmount, total_deposited: transferAmount } },
         { new: true, upsert: true }
       );
 
+      let msgText = `🎉 **NẠP TIỀN TỰ ĐỘNG THÀNH CÔNG!**\n\n` +
+                    `💵 Số tiền chuyển: **${transferAmount.toLocaleString()}đ**\n`;
+      
+      if (bonusAmount > 0) {
+        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): **+${bonusAmount.toLocaleString()}đ**\n` +
+                   `💰 Tổng nhận vào ví: **+${finalReceiveAmount.toLocaleString()}đ**\n`;
+      } else {
+        msgText += `💰 Số tiền nhận: **+${transferAmount.toLocaleString()}đ**\n`;
+      }
+
+      msgText += `💳 Số dư ví hiện tại: **${user.balance.toLocaleString()}đ**`;
+
       bot.sendMessage(
         pendingDeposit.userId,
-        `🎉 **NẠP TIỀN TỰ ĐỘNG THÀNH CÔNG!**\n\n` +
-        `💵 Số tiền nhận: **+${transferAmount.toLocaleString()}đ**\n` +
-        `💰 Số dư ví hiện tại: **${user.balance.toLocaleString()}đ**`,
+        msgText,
         { parse_mode: 'Markdown' }
       ).catch(() => {});
     }
@@ -183,6 +205,7 @@ async function setupBotCommands() {
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
+      { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
@@ -229,8 +252,13 @@ async function sendMainMenu(chatId, userId) {
   let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                  `👤 ID của bạn: \`${userId}\`\n` +
                  `💰 Số dư ví: ${userBalance}đ\n` +
-                 `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
-                 `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
+                 `💳 Tổng đã nạp: ${userDeposited}đ\n`;
+
+  if (depositBonusPercent > 0) {
+    menuText += `🎁 **Khuyến mãi nạp hiện tại:** Tặng thêm **+${depositBonusPercent}%** vào ví!\n`;
+  }
+
+  menuText += `\n👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -241,6 +269,7 @@ async function sendMainMenu(chatId, userId) {
     menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                 `👥 Tổng thành viên: **${totalUsers}** người\n` +
                 `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
+                `🎁 Mức khuyến mãi: **${depositBonusPercent}%**\n` +
                 `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
   }
 
@@ -264,7 +293,12 @@ async function sendMainMenu(chatId, userId) {
 }
 
 async function sendDepositMenu(chatId, messageId = null) {
-  const text = `💰 **NẠP TIỀN TỰ ĐỘNG**\n\nChọn nhanh số tiền hoặc bấm nhập số tiền khác (Tối thiểu 10.000đ):`;
+  let text = `💰 **NẠP TIỀN TỰ ĐỘNG**\n`;
+  if (depositBonusPercent > 0) {
+    text += `🎁 **Đang có chương trình khuyến mãi: Tặng ngay +${depositBonusPercent}% giá trị nạp!**\n\n`;
+  }
+  text += `Chọn nhanh số tiền hoặc bấm nhập số tiền khác (Tối thiểu 10.000đ):`;
+
   const replyMarkup = {
     inline_keyboard: [
       [
@@ -298,14 +332,22 @@ async function createAndSendQR(chatId, userId, amount) {
   const accountName = 'DINH CONG HOAT';
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
-  const caption = `💰 **THÔNG TIN CHUYỂN KHOẢN (TPBANK)**\n\n` +
-                  `🏛️ Ngân hàng: **TPBank**\n` +
-                  `💳 Số tài khoản: \`${accountNo}\`\n` +
-                  `👤 Chủ tài khoản: **${accountName}**\n` +
-                  `💵 Số tiền: **${amount.toLocaleString()}đ**\n` +
-                  `📝 Nội dung: \`${content}\`\n\n` +
-                  `⚠️ *Không sửa số tiền hoặc nội dung.*\n` +
-                  `⏳ Hệ thống sẽ tự cộng tiền sau vài giây khi bạn chuyển khoản thành công!`;
+  let caption = `💰 **THÔNG TIN CHUYỂN KHOẢN (TPBANK)**\n\n` +
+                `🏛️ Ngân hàng: **TPBank**\n` +
+                `💳 Số tài khoản: \`${accountNo}\`\n` +
+                `👤 Chủ tài khoản: **${accountName}**\n` +
+                `💵 Số tiền: **${amount.toLocaleString()}đ**\n`;
+
+  if (depositBonusPercent > 0) {
+    const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
+    const totalVal = amount + bonusVal;
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): **+${bonusVal.toLocaleString()}đ**\n` +
+               `💰 Nhận thực tế vào ví: **${totalVal.toLocaleString()}đ**\n`;
+  }
+
+  caption += `📝 Nội dung: \`${content}\`\n\n` +
+             `⚠️ *Không sửa số tiền hoặc nội dung.*\n` +
+             `⏳ Hệ thống sẽ tự cộng tiền sau vài giây khi bạn chuyển khoản thành công!`;
 
   bot.sendPhoto(chatId, qrUrl, {
     caption: caption,
@@ -337,6 +379,24 @@ bot.on('message', async (msg) => {
 
   if (checkSpam(userId)) {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
+  // LỆNH CÀI ĐẶT KHUYẾN MÃI CHO ADMIN: /km [số_phần_trăm] (Ví dụ: /km 10 hoặc /km 0 để tắt)
+  if (text.startsWith('/km')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const percent = parseInt(parts[1], 10);
+
+    if (isNaN(percent) || percent < 0) {
+      return bot.sendMessage(chatId, `⚠️ **Định dạng không hợp lệ!**\n\nVui lòng nhập đúng cú pháp:\n- Bật khuyến mãi 10%: \`/km 10\`\n- Tắt khuyến mãi: \`/km 0\``, { parse_mode: 'Markdown' });
+    }
+
+    depositBonusPercent = percent;
+    if (percent > 0) {
+      return bot.sendMessage(chatId, `🎁 **Đã cập nhật khuyến mãi nạp tiền!**\nTừ bây giờ mỗi khi khách nạp tiền sẽ được tặng thêm **+${percent}%** vào ví.`);
+    } else {
+      return bot.sendMessage(chatId, `❌ **Đã tắt chương trình khuyến mãi nạp tiền.**`);
+    }
   }
 
   if (text.startsWith('/baotri')) {
@@ -506,8 +566,13 @@ bot.on('callback_query', async (query) => {
     let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
                    `👤 ID của bạn: \`${userId}\`\n` +
                    `💰 Số dư ví: ${userBalance}đ\n` +
-                   `💳 Tổng đã nạp: ${userDeposited}đ\n\n` +
-                   `👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
+                   `💳 Tổng đã nạp: ${userDeposited}đ\n`;
+
+    if (depositBonusPercent > 0) {
+      menuText += `🎁 **Khuyến mãi nạp hiện tại:** Tặng thêm **+${depositBonusPercent}%** vào ví!\n`;
+    }
+
+    menuText += `\n👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
     if (userId === ADMIN_ID) {
       const users = await User.find({});
@@ -518,6 +583,7 @@ bot.on('callback_query', async (query) => {
       menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                   `👥 Tổng thành viên: **${totalUsers}** người\n` +
                   `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
+                  `🎁 Mức khuyến mãi: **${depositBonusPercent}%**\n` +
                   `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
     }
 
@@ -631,7 +697,7 @@ bot.on('callback_query', async (query) => {
 
   if (action.startsWith('rent_')) {
     if (checkSpam(userId)) {
-      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn thao tác quá nhanh, vui lòng từ từ!', show_alert: true });
+      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
     }
 
     const serviceInfo = getServiceInfo(action);
@@ -670,7 +736,6 @@ bot.on('callback_query', async (query) => {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
-          // GIẤU THÔNG BÁO LỖI LỘ WEB BÊN THỨ 3
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       } else if (provider === 'npa') {
@@ -685,7 +750,6 @@ bot.on('callback_query', async (query) => {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
-          // GIẤU THÔNG BÁO LỖI LỘ WEB BÊN THỨ 3
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       }
