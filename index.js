@@ -13,6 +13,7 @@ let referralCommissionPercent = 10;
 
 // HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA
 function removeAccentsAndUpperCase(str) {
+  if (!str) return '';
   return str
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -164,7 +165,7 @@ let isMaintenanceMode = false;
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
 const userState = new Map();
-const tempDepositData = new Map(); // Lưu tạm số tiền & họ tên chờ khách nhập
+const tempDepositData = new Map();
 
 function checkSpam(userId) {
   if (userId.toString() === ADMIN_ID) return false;
@@ -432,20 +433,18 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // BƯỚC 2: XỬ LÝ KHI KHÁCH NHẬP HỌ VÀ TÊN
   if (userState.get(userId) === 'awaiting_fullname') {
     const rawFullName = removeAccentsAndUpperCase(text);
 
     if (rawFullName.length < 3 || !rawFullName.includes(' ')) {
-      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: \`Nguyen Van A`):`);
+      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: Nguyen Van A):`);
     }
 
     const proposedContent = `${rawFullName} chuyen tien`;
 
-    // KIỂM TRA XEM NỘI DUNG NÀY ĐÃ TỒN TẠI TRONG ĐƠN PENDING NÀO CHƯA
     const existingContent = await Deposit.findOne({ content: proposedContent, status: 'pending' });
     if (existingContent) {
-      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập **Họ và Tên khác** (hoặc thêm tên đệm/số):`);
+      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập Họ và Tên khác (hoặc thêm tên đệm/số):`);
     }
 
     const amount = tempDepositData.get(userId);
@@ -455,7 +454,6 @@ bot.on('message', async (msg) => {
     return createAndSendQR(chatId, userId, amount, rawFullName);
   }
 
-  // XỬ LÝ NHẬP SỐ TIỀN TÙY CHỌN
   if (userState.get(userId) === 'awaiting_deposit_amount') {
     const cleanNumberText = text.replace(/[^0-9]/g, '');
     const customAmount = parseInt(cleanNumberText, 10);
@@ -466,7 +464,7 @@ bot.on('message', async (msg) => {
 
     tempDepositData.set(userId, customAmount);
     userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: \`Dinh Cong Hoat\`):`);
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Dinh Cong Hoat):`);
   }
 
   if (text.startsWith('/start')) {
@@ -654,13 +652,12 @@ bot.on('callback_query', async (query) => {
     return sendDepositMenu(chatId);
   }
 
-  // BƯỚC 1: KHI KHÁCH CHỌN SỐ TIỀN NHANH, BẮT ĐẦU YÊU CẦU NHẬP HỌ TÊN
   if (action.startsWith('dep_') && action !== 'dep_custom') {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     tempDepositData.set(userId, amount);
     userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: \`Dinh Cong Hoat\`):`);
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Dinh Cong Hoat):`);
   }
 
   if (action === 'dep_custom') {
