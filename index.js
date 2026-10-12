@@ -8,8 +8,9 @@ app.get('/', (req, res) => {
   res.send('Bot Telegram đang chạy 24/7!');
 });
 
-// BIẾN LƯU PHẦN TRĂM KHUYẾN MÃI (Mặc định là 0 - Không khuyến mãi)
+// BIẾN LƯU PHẦN TRĂM KHUYẾN MÃI VÀ HOA HỒNG
 let depositBonusPercent = 0;
+let referralCommissionPercent = 10; // Mặc định 10% hoa hồng
 
 // WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY (TPBANK)
 app.post('/webhook/sepay', async (req, res) => {
@@ -35,7 +36,7 @@ app.post('/webhook/sepay', async (req, res) => {
       pendingDeposit.status = 'success';
       await pendingDeposit.save();
 
-      // TÍNH TOÁN TIỀN KHUYẾN MÃI
+      // TÍNH TOÁN TIỀN KHUYẾN MÃI DÀNH CHO KHÁCH NẠP
       let finalReceiveAmount = transferAmount;
       let bonusAmount = 0;
 
@@ -67,6 +68,29 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText,
         { parse_mode: 'Markdown' }
       ).catch(() => {});
+
+      // TÍNH TOÁN & CỘNG HOA HỒNG CHO NGƯỜI GIỚI THIỆU
+      if (referralCommissionPercent > 0 && user.referredBy) {
+        const commission = Math.floor((transferAmount * referralCommissionPercent) / 100);
+        if (commission > 0) {
+          const referrer = await User.findOneAndUpdate(
+            { userId: user.referredBy },
+            { $inc: { balance: commission, total_commission: commission } },
+            { new: true }
+          );
+
+          if (referrer) {
+            bot.sendMessage(
+              user.referredBy,
+              `🎁 **NHẬN HOA HỒNG GIỚI THIỆU!**\n\n` +
+              `👤 Bạn bè (ID: \`${pendingDeposit.userId}\`) vừa nạp thành công **${transferAmount.toLocaleString()}đ**.\n` +
+              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): **+${commission.toLocaleString()}đ**\n` +
+              `💳 Số dư ví hiện tại: **${referrer.balance.toLocaleString()}đ**`,
+              { parse_mode: 'Markdown' }
+            ).catch(() => {});
+          }
+        }
+      }
     }
 
     res.status(200).json({ success: true });
@@ -94,7 +118,10 @@ mongoose.connect(MONGO_URI)
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
-  total_deposited: { type: Number, default: 0 }
+  total_deposited: { type: Number, default: 0 },
+  referredBy: { type: String, default: null },       // ID người giới thiệu
+  referralCount: { type: Number, default: 0 },      // Số người đã giới thiệu
+  total_commission: { type: Number, default: 0 }    // Tổng hoa hồng đã nhận
 });
 const User = mongoose.model('User', userSchema);
 
@@ -118,6 +145,12 @@ async function getUser(userId) {
 
 const token = process.env.BOT_TOKEN || '8151870148:AAHdqXysbRCDq0JHaBCqhpWzAXBFCnEi5cg';
 const bot = new TelegramBot(token, { polling: true });
+
+// TỰ ĐỘNG LẤY BOT USERNAME ĐỂ TẠO LINK REF CHUẨN
+let botUsername = 'htlach_bot';
+bot.getMe().then(me => {
+  if (me && me.username) botUsername = me.username;
+});
 
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
@@ -206,6 +239,7 @@ async function setupBotCommands() {
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
+      { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
@@ -269,7 +303,8 @@ async function sendMainMenu(chatId, userId) {
     menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                 `👥 Tổng thành viên: **${totalUsers}** người\n` +
                 `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
-                `🎁 Mức khuyến mãi: **${depositBonusPercent}%**\n` +
+                `🎁 Mức khuyến mãi nạp: **${depositBonusPercent}%**\n` +
+                `🤝 Hoa hồng giới thiệu: **${referralCommissionPercent}%**\n` +
                 `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
   }
 
@@ -283,6 +318,7 @@ async function sendMainMenu(chatId, userId) {
         [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
         [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
+        [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
         [
           { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
           { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
@@ -290,6 +326,37 @@ async function sendMainMenu(chatId, userId) {
       ]
     }
   });
+}
+
+async function sendReferralMenu(chatId, userId, messageId = null) {
+  const user = await getUser(userId);
+  const refCount = user.referralCount || 0;
+  const totalComm = (user.total_commission || 0).toLocaleString();
+  const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+  const text = `🔗 **GIỚI THIỆU BẠN BÈ**\n` +
+               `-----------------------------------\n` +
+               `Chia sẻ link dưới đây cho bạn bè. Khi họ nạp tiền, bạn tự động nhận **${referralCommissionPercent}%** hoa hồng mỗi lần họ nạp tiền.\n\n` +
+               `👥 Đã giới thiệu: **${refCount} người**\n` +
+               `💰 Tổng hoa hồng đã nhận: **${totalComm}đ**\n\n` +
+               `🔗 **Link giới thiệu của bạn:**\n` +
+               `\`${refLink}\``;
+
+  const shareText = encodeURIComponent(`🤖 Thuê số OTP tự động giá siêu rẻ & lấy mã 2FA cực nhanh tại đây: ${refLink}`);
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '📬 Chia sẻ ngay', url: shareUrl }],
+      [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
+    ]
+  };
+
+  if (messageId) {
+    bot.editMessageText(text, { chatId, message_id: messageId, parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true }).catch(() => {});
+  } else {
+    bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true });
+  }
 }
 
 async function sendDepositMenu(chatId, messageId = null) {
@@ -381,7 +448,42 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // LỆNH CÀI ĐẶT KHUYẾN MÃI CHO ADMIN: /km [số_phần_trăm] (Ví dụ: /km 10 hoặc /km 0 để tắt)
+  // XỬ LÝ LỆNH /START KÈM MÃ GIỚI THIỆU (LINK REF)
+  if (text.startsWith('/start')) {
+    const parts = text.split(' ');
+    if (parts.length > 1 && parts[1].startsWith('ref_')) {
+      const inviterId = parts[1].replace('ref_', '').trim();
+      
+      // Không thể tự giới thiệu chính mình
+      if (inviterId !== userId) {
+        let existingUser = await User.findOne({ userId: userId });
+        if (!existingUser) {
+          // Tạo user mới và gán người giới thiệu
+          await User.create({ userId: userId, balance: 0, total_deposited: 0, referredBy: inviterId });
+          await User.updateOne({ userId: inviterId }, { $inc: { referralCount: 1 } });
+
+          bot.sendMessage(inviterId, `🎉 **BẠN CÓ THÀNH VIÊN MỚI!**\nUser \`${userId}\` vừa tham gia bot qua link giới thiệu của bạn.`, { parse_mode: 'Markdown' }).catch(() => {});
+        }
+      }
+    }
+    return sendMainMenu(chatId, userId);
+  }
+
+  // LỆNH CÀI ĐẶT % HOA HỒNG DÀNH CHO ADMIN: /hoahong [số_phần_trăm] (Ví dụ: /hoahong 10)
+  if (text.startsWith('/hoahong')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const percent = parseInt(parts[1], 10);
+
+    if (isNaN(percent) || percent < 0) {
+      return bot.sendMessage(chatId, `⚠️ **Cú pháp không hợp lệ!**\n\nVui lòng cài đặt bằng cú pháp:\n- Đặt 10% hoa hồng: \`/hoahong 10\`\n- Tắt hoa hồng: \`/hoahong 0\``, { parse_mode: 'Markdown' });
+    }
+
+    referralCommissionPercent = percent;
+    return bot.sendMessage(chatId, `✅ **Đã cập nhật tỷ lệ hoa hồng giới thiệu:** **${percent}%** cho mỗi lần bạn bè nạp tiền.`);
+  }
+
+  // LỆNH CÀI ĐẶT KHUYẾN MÃI NẠP DÀNH CHO ADMIN: /km [số_phần_trăm]
   if (text.startsWith('/km')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -481,7 +583,7 @@ bot.on('message', async (msg) => {
     );
   }
 
-  if (text.startsWith('/start') || text.startsWith('/menu')) {
+  if (text.startsWith('/menu')) {
     return sendMainMenu(chatId, userId);
   }
 
@@ -534,6 +636,11 @@ bot.on('callback_query', async (query) => {
 
   const user = await getUser(userId);
 
+  if (action === 'menu_ref') {
+    userState.delete(userId);
+    return sendReferralMenu(chatId, userId, messageId);
+  }
+
   if (action === 'menu_nap') {
     userState.delete(userId);
     bot.deleteMessage(chatId, messageId).catch(() => {});
@@ -583,7 +690,8 @@ bot.on('callback_query', async (query) => {
       menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
                   `👥 Tổng thành viên: **${totalUsers}** người\n` +
                   `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
-                  `🎁 Mức khuyến mãi: **${depositBonusPercent}%**\n` +
+                  `🎁 Mức khuyến mãi nạp: **${depositBonusPercent}%**\n` +
+                  `🤝 Hoa hồng giới thiệu: **${referralCommissionPercent}%**\n` +
                   `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
     }
 
@@ -599,6 +707,7 @@ bot.on('callback_query', async (query) => {
             [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
             [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
             [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
+            [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
             [
               { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
               { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
@@ -618,6 +727,7 @@ bot.on('callback_query', async (query) => {
           [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
           [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
           [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
+          [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
           [
             { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
             { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
