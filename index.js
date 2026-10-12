@@ -22,7 +22,6 @@ function removeAccentsAndUpperCase(str) {
     .trim();
 }
 
-// HÀM GIẢI MÃ QUOTED-PRINTABLE (XỬ LÝ DỮ LIỆU EMAIL MÃ HÓA)
 function decodeQuotedPrintable(str) {
   if (!str) return '';
   return str
@@ -229,7 +228,7 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE GIẢI MÃ TOÀN BỘ EMAIL
+// HÀM LẤY OTP EMAILFAKE (GỌI API CỦA EMAILFAKE)
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
@@ -239,48 +238,48 @@ async function getEmailFakeOTP(emailStr) {
     const user = parts[0];
     const domain = parts[1];
 
-    const targetUrl = `https://emailfake.com/${domain}/${user}`;
+    const apiUrl = `https://emailfake.com/check_for_new_mail.php?e=${encodeURIComponent(cleanEmail)}&u=${encodeURIComponent(user)}&d=${encodeURIComponent(domain)}`;
     
-    const res = await axios.get(targetUrl, {
+    const res = await axios.get(apiUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://emailfake.com/'
+        'Referer': `https://emailfake.com/${domain}/${user}`,
+        'X-Requested-With': 'XMLHttpRequest'
       },
       timeout: 10000
     });
 
+    let htmlContent = '';
     if (res.data) {
-      // 1. Giải mã Quoted-printable dữ liệu email
-      const decodedHtml = decodeQuotedPrintable(String(res.data));
-      const $ = cheerio.load(decodedHtml);
-
-      // 2. Tìm kiếm mã 6 số trong cấu trúc HTML của TikTok: Mã gồm 6 chữ số của bạn là: 970025
-      const tiktokMatch = decodedHtml.match(/Mã gồm 6 chữ số[^\d]*(\d{6})/i) || 
-                          decodedHtml.match(/mã là[^\d]*(\d{6})/i) ||
-                          decodedHtml.match(/code is[^\d]*(\d{6})/i);
-
-      if (tiktokMatch && tiktokMatch[1]) {
-        return tiktokMatch[1];
-      }
-
-      // 3. Quét các thẻ span/b có độ dài 6 chữ số
-      let matchedCode = null;
-      $('span, b, td, p, div').each((i, el) => {
-        if (matchedCode) return;
-        const text = $(el).text().trim();
-        if (/^\d{6}$/.test(text)) {
-          matchedCode = text;
-        }
-      });
-
-      if (matchedCode) return matchedCode;
-
-      // 4. Quét fallback từ Subject/Header
-      const headerMatch = decodedHtml.match(/Subject:\s*(\d{6})/i);
-      if (headerMatch && headerMatch[1]) {
-        return headerMatch[1];
+      if (typeof res.data === 'object') {
+        htmlContent = JSON.stringify(res.data);
+      } else {
+        htmlContent = String(res.data);
       }
     }
+
+    const decodedHtml = decodeQuotedPrintable(htmlContent);
+
+    const match6 = decodedHtml.match(/\b\d{6}\b/);
+    if (match6) {
+      return match6[0];
+    }
+
+    const targetUrl = `https://emailfake.com/${domain}/${user}`;
+    const fallbackRes = await axios.get(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cookie': `surl=${domain}/${user}`
+      },
+      timeout: 8000
+    });
+
+    if (fallbackRes.data) {
+      const decodedFallback = decodeQuotedPrintable(String(fallbackRes.data));
+      const matchFallback = decodedFallback.match(/\b\d{6}\b/);
+      if (matchFallback) return matchFallback[0];
+    }
+
     return null;
   } catch (err) {
     return null;
