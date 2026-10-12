@@ -437,7 +437,7 @@ bot.on('message', async (msg) => {
     const rawFullName = removeAccentsAndUpperCase(text);
 
     if (rawFullName.length < 3 || !rawFullName.includes(' ')) {
-      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: Nguyen Van A):`);
+      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: Hoang Van Khanh):`);
     }
 
     const proposedContent = `${rawFullName} chuyen tien`;
@@ -464,7 +464,7 @@ bot.on('message', async (msg) => {
 
     tempDepositData.set(userId, customAmount);
     userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Dinh Cong Hoat):`);
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Hoang Van Khanh):`);
   }
 
   if (text.startsWith('/start')) {
@@ -657,7 +657,7 @@ bot.on('callback_query', async (query) => {
     bot.deleteMessage(chatId, messageId).catch(() => {});
     tempDepositData.set(userId, amount);
     userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Dinh Cong Hoat):`);
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Hoang Van Khanh):`);
   }
 
   if (action === 'dep_custom') {
