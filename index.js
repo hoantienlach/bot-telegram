@@ -11,7 +11,7 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
-// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA
+// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA, CHỈ GIỮ LẠI CHỮ CÁI VÀ KHOẢNG TRẮNG
 function removeAccentsAndUpperCase(str) {
   if (!str) return '';
   return str
@@ -117,7 +117,6 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Đã kết nối thành công tới MongoDB Atlas!'))
   .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err.message));
 
-// BỔ SUNG THÊM TRƯỜNG fullName VÀO USER SCHEMA ĐỂ LƯU HỌ TÊN VĨNH VIỄN
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
@@ -125,7 +124,7 @@ const userSchema = new mongoose.Schema({
   referredBy: { type: String, default: null },
   referralCount: { type: Number, default: 0 },
   total_commission: { type: Number, default: 0 },
-  fullName: { type: String, default: null } 
+  fullName: { type: String, default: null }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -135,7 +134,7 @@ const depositSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   content: { type: String, required: true },
   status: { type: String, default: 'pending' },
-  createdAt: { type: Date, default: Date.now, expires: 600 } // 10 phút hết hạn
+  createdAt: { type: Date, default: Date.now, expires: 600 }
 });
 const Deposit = mongoose.model('Deposit', depositSchema);
 
@@ -437,22 +436,24 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // KHI KHÁCH NHẬP HỌ TÊN, LƯU VÀO CƠ SỞ DỮ LIỆU LUÔN CHO TÀI KHOẢN NÀY
+  // XỬ LÝ KHI KHÁCH NHẬP HỌ TÊN
   if (userState.get(userId) === 'awaiting_fullname') {
     const rawFullName = removeAccentsAndUpperCase(text);
 
-    if (rawFullName.length < 3 || !rawFullName.includes(' ')) {
-      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: Hoang Van Khanh):`);
+    // BẮT LỖI NẾU CÓ CHỮ SỐ HOẶC KÝ TỰ ĐẶC BIỆT HOẶC KHÔNG PHẢI CHỮ CÁI
+    const isValidName = /^[A-Z\s]+$/.test(rawFullName);
+
+    if (!isValidName || rawFullName.length < 3 || !rawFullName.includes(' ')) {
+      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng chỉ nhập đầy đủ Họ và Tên bằng chữ cái không dấu (Ví dụ: Hoang Van Khanh):`);
     }
 
     const proposedContent = `${rawFullName} chuyen tien`;
 
     const existingContent = await Deposit.findOne({ content: proposedContent, status: 'pending' });
     if (existingContent) {
-      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập Họ và Tên khác (hoặc thêm tên đệm/số):`);
+      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập Họ và Tên khác (hoặc thêm tên đệm):`);
     }
 
-    // LƯU HỌ TÊN VÀO HỒ SƠ NGƯỜI DÙNG
     await User.updateOne({ userId: userId }, { fullName: rawFullName });
 
     const amount = tempDepositData.get(userId);
@@ -472,7 +473,6 @@ bot.on('message', async (msg) => {
 
     tempDepositData.set(userId, customAmount);
     
-    // KIỂM TRA XEM USER ĐÃ CÓ HỌ TÊN CHƯA, NẾU CÓ RỒI THÌ BỎ QUA BƯỚC NHẬP LẠI
     const userDoc = await User.findOne({ userId: userId });
     if (userDoc && userDoc.fullName) {
       userState.delete(userId);
@@ -669,18 +669,14 @@ bot.on('callback_query', async (query) => {
     return sendDepositMenu(chatId);
   }
 
-  // KHI KHÁCH CHỌN SỐ TIỀN NHANH
   if (action.startsWith('dep_') && action !== 'dep_custom') {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
 
-    // KIỂM TRA XEM USER ĐÃ CÓ HỌ TÊN TRONG DATABASE CHƯA
     if (user.fullName) {
-      // Nếu có rồi thì tạo thẳng QR luôn, KHÔNG CẦN NHẬP LẠI
       return createAndSendQR(chatId, userId, amount, user.fullName);
     }
 
-    // Nếu chưa có thì bắt đầu yêu cầu nhập họ tên lần đầu
     tempDepositData.set(userId, amount);
     userState.set(userId, 'awaiting_fullname');
     return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Hoang Van Khanh):`);
