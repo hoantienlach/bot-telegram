@@ -10,7 +10,7 @@ app.get('/', (req, res) => {
 
 // BIẾN LƯU PHẦN TRĂM KHUYẾN MÃI VÀ HOA HỒNG
 let depositBonusPercent = 0;
-let referralCommissionPercent = 10; // Mặc định 10% hoa hồng
+let referralCommissionPercent = 10;
 
 // WEBHOOK NHẬN TIỀN TỰ ĐỘNG TỪ SEPAY (TPBANK)
 app.post('/webhook/sepay', async (req, res) => {
@@ -36,7 +36,6 @@ app.post('/webhook/sepay', async (req, res) => {
       pendingDeposit.status = 'success';
       await pendingDeposit.save();
 
-      // TÍNH TOÁN TIỀN KHUYẾN MÃI DÀNH CHO KHÁCH NẠP
       let finalReceiveAmount = transferAmount;
       let bonusAmount = 0;
 
@@ -69,7 +68,6 @@ app.post('/webhook/sepay', async (req, res) => {
         { parse_mode: 'Markdown' }
       ).catch(() => {});
 
-      // TÍNH TOÁN & CỘNG HOA HỒNG CHO NGƯỜI GIỚI THIỆU
       if (referralCommissionPercent > 0 && user.referredBy) {
         const commission = Math.floor((transferAmount * referralCommissionPercent) / 100);
         if (commission > 0) {
@@ -119,9 +117,9 @@ const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
   total_deposited: { type: Number, default: 0 },
-  referredBy: { type: String, default: null },       // ID người giới thiệu
-  referralCount: { type: Number, default: 0 },      // Số người đã giới thiệu
-  total_commission: { type: Number, default: 0 }    // Tổng hoa hồng đã nhận
+  referredBy: { type: String, default: null },
+  referralCount: { type: Number, default: 0 },
+  total_commission: { type: Number, default: 0 }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -146,7 +144,6 @@ async function getUser(userId) {
 const token = process.env.BOT_TOKEN || '8151870148:AAHdqXysbRCDq0JHaBCqhpWzAXBFCnEi5cg';
 const bot = new TelegramBot(token, { polling: true });
 
-// TỰ ĐỘNG LẤY BOT USERNAME ĐỂ TẠO LINK REF CHUẨN
 let botUsername = 'htlach_bot';
 bot.getMe().then(me => {
   if (me && me.username) botUsername = me.username;
@@ -159,7 +156,6 @@ const ADMIN_ID = '5426720868';
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
 
-// BIẾN TRẠNG THÁI BẢO TRÌ
 let isMaintenanceMode = false;
 
 const cooldowns = new Map();
@@ -328,7 +324,9 @@ async function sendMainMenu(chatId, userId) {
   });
 }
 
-async function sendReferralMenu(chatId, userId, messageId = null) {
+// XÓA TIN NHẮN CŨ VÀ GỬI MENU GIỚI THIỆU MỚI HOÀN TOÀN
+async function sendReferralMenu(chatId, userId, messageId) {
+  userState.delete(userId);
   const user = await getUser(userId);
   const refCount = user.referralCount || 0;
   const totalComm = (user.total_commission || 0).toLocaleString();
@@ -352,13 +350,15 @@ async function sendReferralMenu(chatId, userId, messageId = null) {
     ]
   };
 
-  if (messageId) {
-    bot.editMessageText(text, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true }).catch((err) => {
-      console.error('Lỗi editMessageText ref:', err.message);
-    });
-  } else {
-    bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true });
-  }
+  // Xóa menu cũ để không bị kẹt
+  bot.deleteMessage(chatId, messageId).catch(() => {});
+
+  // Gửi tin nhắn mới
+  bot.sendMessage(chatId, text, {
+    parse_mode: 'Markdown',
+    reply_markup: replyMarkup,
+    disable_web_page_preview: true
+  });
 }
 
 async function sendDepositMenu(chatId, messageId = null) {
@@ -450,7 +450,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // XỬ LÝ LỆNH /START KÈM MÃ GIỚI THIỆU (LINK REF)
   if (text.startsWith('/start')) {
     const parts = text.split(' ');
     if (parts.length > 1 && parts[1].startsWith('ref_')) {
@@ -635,8 +634,12 @@ bot.on('callback_query', async (query) => {
   const user = await getUser(userId);
 
   if (action === 'menu_ref') {
-    userState.delete(userId);
     return sendReferralMenu(chatId, userId, messageId);
+  }
+
+  if (action === 'back_main') {
+    bot.deleteMessage(chatId, messageId).catch(() => {});
+    return sendMainMenu(chatId, userId);
   }
 
   if (action === 'menu_nap') {
@@ -663,76 +666,10 @@ bot.on('callback_query', async (query) => {
     return createAndSendQR(chatId, userId, amount);
   }
 
-  if (action === 'rent_more' || action === 'back_main') {
+  if (action === 'rent_more') {
     userState.delete(userId);
-    const userBalance = (user.balance || 0).toLocaleString();
-    const userDeposited = (user.total_deposited || 0).toLocaleString();
-
-    let menuText = `🤖 **HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA**\n` +
-                   `👤 ID của bạn: \`${userId}\`\n` +
-                   `💰 Số dư ví: ${userBalance}đ\n` +
-                   `💳 Tổng đã nạp: ${userDeposited}đ\n`;
-
-    if (depositBonusPercent > 0) {
-      menuText += `🎁 **Khuyến mãi nạp hiện tại:** Tặng thêm **+${depositBonusPercent}%** vào ví!\n`;
-    }
-
-    menuText += `\n👉 *Mẹo:* Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
-
-    if (userId === ADMIN_ID) {
-      const users = await User.find({});
-      const totalUsers = users.length;
-      let totalDepositedAll = 0;
-      users.forEach(u => { totalDepositedAll += (u.total_deposited || 0); });
-
-      menuText += `\n\n📊 **THỐNG KÊ HỆ THỐNG:**\n` +
-                  `👥 Tổng thành viên: **${totalUsers}** người\n` +
-                  `💵 Tổng tiền nạp tất cả: **${totalDepositedAll.toLocaleString()}đ**\n` +
-                  `🎁 Mức khuyến mãi nạp: **${depositBonusPercent}%**\n` +
-                  `🤝 Hoa hồng giới thiệu: **${referralCommissionPercent}%**\n` +
-                  `🛠️ Trạng thái bảo trì: **${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}**`;
-    }
-
-    if (query.message.photo) {
-      bot.deleteMessage(chatId, messageId).catch(() => {});
-      return bot.sendMessage(chatId, menuText, {
-        parse_mode: 'Markdown',
-        disable_web_page_preview: true,
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
-            [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
-            [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
-            [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
-            [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
-            [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
-            [
-              { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-              { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
-            ]
-          ]
-        }
-      });
-    }
-
-    return bot.editMessageText(menuText, {
-      chat_id: chatId, message_id: messageId, parse_mode: 'Markdown',
-      disable_web_page_preview: true,
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
-          [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
-          [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
-          [{ text: '⚡ Thuê số khác', callback_data: 'menu_npa' }],
-          [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
-          [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
-          [
-            { text: '💰 Kiểm tra số dư', callback_data: 'check_balance' },
-            { text: '📞 Hỗ trợ Admin', url: 'https://t.me/phanhe' }
-          ]
-        ]
-      }
-    });
+    bot.deleteMessage(chatId, messageId).catch(() => {});
+    return sendMainMenu(chatId, userId);
   }
 
   if (action === 'menu_shopee') {
@@ -935,7 +872,7 @@ bot.on('callback_query', async (query) => {
         }
 
         bot.sendMessage(chatId, refundMsg, {
-          parse_mode: 'Markdown',
+          parse_mongo: 'Markdown',
           reply_markup: {
             inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
           }
