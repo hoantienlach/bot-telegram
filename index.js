@@ -226,24 +226,44 @@ async function getEmailFakeOTP(emailStr) {
     const cleanEmail = emailStr.trim();
     if (!cleanEmail.includes('@')) return null;
 
-    const res = await axios.get(`https://checkotpmail.com/api/get_code.php?mail=${encodeURIComponent(cleanEmail)}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Referer': 'https://checkotpmail.com/'
-      },
-      timeout: 8000
-    });
+    const parts = cleanEmail.split('@');
+    const usr = parts[0];
+    const dmn = parts[1];
 
-    if (res.data) {
-      if (typeof res.data === 'object') {
-        const code = res.data.code || res.data.otp || res.data.data;
-        if (code) return code;
-      }
-      if (typeof res.data === 'string') {
-        const match = res.data.match(/\b\d{4,8}\b/);
+    try {
+      const url1 = `https://checkotpmail.com/api/get_otp.php?email=${encodeURIComponent(cleanEmail)}&user=${encodeURIComponent(usr)}&domain=${encodeURIComponent(dmn)}`;
+      const res1 = await axios.get(url1, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://checkotpmail.com/'
+        },
+        timeout: 8000
+      });
+
+      if (res1.data) {
+        let textData = typeof res1.data === 'object' ? JSON.stringify(res1.data) : String(res1.data);
+        const match = textData.match(/\b\d{4,8}\b/);
         if (match) return match[0];
       }
-    }
+    } catch (e1) {}
+
+    try {
+      const url2 = `https://generator.email/demo_get_email.php?usr=${encodeURIComponent(usr)}&dmn=${encodeURIComponent(dmn)}`;
+      const res2 = await axios.get(url2, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Cookie': `embx=%5B%22${encodeURIComponent(cleanEmail)}%22%5D; surl=${encodeURIComponent(dmn)}/${encodeURIComponent(usr)}`
+        },
+        timeout: 8000
+      });
+
+      if (res2.data) {
+        const textData = String(res2.data);
+        const match = textData.match(/\b\d{4,8}\b/);
+        if (match) return match[0];
+      }
+    } catch (e2) {}
+
     return null;
   } catch (err) {
     return null;
@@ -263,14 +283,9 @@ async function getHotmailOTP(dataLine) {
     });
 
     if (res.data) {
-      if (typeof res.data === 'object') {
-        const code = res.data.code || res.data.otp || res.data.data;
-        if (code) return code;
-      }
-      if (typeof res.data === 'string') {
-        const match = res.data.match(/\b\d{4,8}\b/);
-        if (match) return match[0];
-      }
+      let textData = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data);
+      const match = textData.match(/\b\d{4,8}\b/);
+      if (match) return match[0];
     }
     return null;
   } catch (err) {
@@ -718,9 +733,9 @@ bot.on('message', async (msg) => {
         const email = emailMatch[0];
         const otp = await getEmailFakeOTP(email);
         if (otp) {
-          results.push(`📧 Email: ${email}\n🔑 Mã OTP: \`${otp}\``);
+          results.push(`📧 Email: \`${email}\`\n🔑 Mã OTP: \`${otp}\``);
         } else {
-          results.push(`📧 Email: ${email}\n❌ Chưa nhận được OTP (hoặc hết hạn)`);
+          results.push(`📧 Email: \`${email}\`\n❌ Chưa nhận được OTP (hoặc hết hạn)`);
         }
       }
     }
@@ -737,7 +752,7 @@ bot.on('message', async (msg) => {
   if (cleanSecret.length >= 16) {
     try {
       const token2fa = authenticator.generate(cleanSecret);
-      return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: ${cleanSecret}\n✅ OTP: ${token2fa}`);
+      return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
     } catch (err) {}
   } else {
     bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA, EmailFake, hoặc Data Hotmail để lấy OTP.`);
@@ -976,8 +991,9 @@ bot.on('callback_query', async (query) => {
             
             bot.sendMessage(
               chatId,
-              `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${reqId}\n🔑 Mã OTP: ${otpCode}`,
+              `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${reqId}\n🔑 Mã OTP: \`${otpCode}\``,
               {
+                parse_mode: 'Markdown',
                 reply_markup: {
                   inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
                 }
