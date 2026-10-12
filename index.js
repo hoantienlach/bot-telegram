@@ -107,6 +107,9 @@ const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1';
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
 
+// LƯU TRẠNG THÁI NHẬP SỐ TIỀN CỦA USER
+const userState = new Map();
+
 function checkSpam(userId) {
   if (userId.toString() === ADMIN_ID) return false;
   const now = Date.now();
@@ -214,6 +217,7 @@ function getServiceInfo(action) {
 }
 
 async function sendMainMenu(chatId, userId) {
+  userState.delete(userId); // Xóa trạng thái nhập tiền nếu có
   const user = await getUser(userId);
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
@@ -255,7 +259,7 @@ async function sendMainMenu(chatId, userId) {
 }
 
 async function sendDepositMenu(chatId, messageId = null) {
-  const text = `💰 **NẠP TIỀN TỰ ĐỘNG**\n\nChọn nhanh số tiền bạn muốn nạp:`;
+  const text = `💰 **NẠP TIỀN TỰ ĐỘNG**\n\nChọn nhanh số tiền hoặc bấm nhập số tiền khác (Tối thiểu 10.000đ):`;
   const replyMarkup = {
     inline_keyboard: [
       [
@@ -266,6 +270,7 @@ async function sendDepositMenu(chatId, messageId = null) {
         { text: '50.000đ', callback_data: 'dep_50000' },
         { text: '100.000đ', callback_data: 'dep_100000' }
       ],
+      [{ text: '✏️ Nhập số tiền khác', callback_data: 'dep_custom' }],
       [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
     ]
   };
@@ -319,6 +324,19 @@ bot.on('message', async (msg) => {
 
   if (checkSpam(userId)) {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
+  // XỬ LÝ NHẬP SỐ TIỀN TÙY CHỌN
+  if (userState.get(userId) === 'awaiting_deposit_amount') {
+    const cleanNumberText = text.replace(/[^0-9]/g, '');
+    const customAmount = parseInt(cleanNumberText, 10);
+
+    if (isNaN(customAmount) || customAmount < 10000) {
+      return bot.sendMessage(chatId, `⚠️ **Số tiền không hợp lệ!**\n\nVui lòng nhập số tiền từ **10.000đ** trở lên (Ví dụ gửi: \`15000\` hoặc \`200000\`):`, { parse_mode: 'Markdown' });
+    }
+
+    userState.delete(userId); // Xóa trạng thái sau khi nhập hợp lệ
+    return createAndSendQR(chatId, userId, customAmount);
   }
 
   if (text.startsWith('/sendall')) {
@@ -430,17 +448,31 @@ bot.on('callback_query', async (query) => {
   const user = await getUser(userId);
 
   if (action === 'menu_nap') {
+    userState.delete(userId);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     return sendDepositMenu(chatId);
   }
 
+  if (action === 'dep_custom') {
+    userState.set(userId, 'awaiting_deposit_amount');
+    return bot.sendMessage(
+      chatId,
+      `✏️ **NHẬP SỐ TIỀN BẠN MUỐN NẠP**\n\n` +
+      `👉 Vui lòng dán/nhập số tiền muốn nạp vào ô tin nhắn bên dưới (Tối thiểu **10.000đ**).\n` +
+      `*Ví dụ:* Nhập \`15000\` hoặc \`500000\``,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
   if (action.startsWith('dep_')) {
+    userState.delete(userId);
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     return createAndSendQR(chatId, userId, amount);
   }
 
   if (action === 'rent_more' || action === 'back_main') {
+    userState.delete(userId);
     const userBalance = (user.balance || 0).toLocaleString();
     const userDeposited = (user.total_deposited || 0).toLocaleString();
 
