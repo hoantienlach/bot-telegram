@@ -335,7 +335,7 @@ async function sendReferralMenu(chatId, userId, messageId = null) {
   const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
   const text = `🔗 **GIỚI THIỆU BẠN BÈ**\n` +
-               `-----------------------------------\n` +
+               `___________________________________\n\n` +
                `Chia sẻ link dưới đây cho bạn bè. Khi họ nạp tiền, bạn tự động nhận **${referralCommissionPercent}%** hoa hồng mỗi lần họ nạp tiền.\n\n` +
                `👥 Đã giới thiệu: **${refCount} người**\n` +
                `💰 Tổng hoa hồng đã nhận: **${totalComm}đ**\n\n` +
@@ -353,7 +353,9 @@ async function sendReferralMenu(chatId, userId, messageId = null) {
   };
 
   if (messageId) {
-    bot.editMessageText(text, { chatId, message_id: messageId, parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true }).catch(() => {});
+    bot.editMessageText(text, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true }).catch((err) => {
+      console.error('Lỗi editMessageText ref:', err.message);
+    });
   } else {
     bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: replyMarkup, disable_web_page_preview: true });
   }
@@ -454,11 +456,9 @@ bot.on('message', async (msg) => {
     if (parts.length > 1 && parts[1].startsWith('ref_')) {
       const inviterId = parts[1].replace('ref_', '').trim();
       
-      // Không thể tự giới thiệu chính mình
       if (inviterId !== userId) {
         let existingUser = await User.findOne({ userId: userId });
         if (!existingUser) {
-          // Tạo user mới và gán người giới thiệu
           await User.create({ userId: userId, balance: 0, total_deposited: 0, referredBy: inviterId });
           await User.updateOne({ userId: inviterId }, { $inc: { referralCount: 1 } });
 
@@ -469,7 +469,6 @@ bot.on('message', async (msg) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // LỆNH CÀI ĐẶT % HOA HỒNG DÀNH CHO ADMIN: /hoahong [số_phần_trăm] (Ví dụ: /hoahong 10)
   if (text.startsWith('/hoahong')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -483,7 +482,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `✅ **Đã cập nhật tỷ lệ hoa hồng giới thiệu:** **${percent}%** cho mỗi lần bạn bè nạp tiền.`);
   }
 
-  // LỆNH CÀI ĐẶT KHUYẾN MÃI NẠP DÀNH CHO ADMIN: /km [số_phần_trăm]
   if (text.startsWith('/km')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
