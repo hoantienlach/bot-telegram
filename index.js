@@ -217,7 +217,7 @@ function getServiceInfo(action) {
 }
 
 async function sendMainMenu(chatId, userId) {
-  userState.delete(userId); // Xóa trạng thái nhập tiền nếu có
+  userState.delete(userId);
   const user = await getUser(userId);
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
@@ -335,7 +335,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `⚠️ **Số tiền không hợp lệ!**\n\nVui lòng nhập số tiền từ **10.000đ** trở lên (Ví dụ gửi: \`15000\` hoặc \`200000\`):`, { parse_mode: 'Markdown' });
     }
 
-    userState.delete(userId); // Xóa trạng thái sau khi nhập hợp lệ
+    userState.delete(userId);
     return createAndSendQR(chatId, userId, customAmount);
   }
 
@@ -435,10 +435,6 @@ bot.on('callback_query', async (query) => {
   const messageId = query.message.message_id;
   const userId = query.from.id.toString();
   const action = query.data;
-
-  if (checkSpam(userId)) {
-    return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
-  }
 
   const isJoined = await checkUserMembership(userId);
   if (!isJoined) {
@@ -601,7 +597,12 @@ bot.on('callback_query', async (query) => {
     return bot.answerCallbackQuery(query.id, { text: `💰 Số dư ví: ${bal}đ | 💳 Tổng nạp: ${dep}đ`, show_alert: true });
   }
 
+  // CHỈ ÁP DỤNG CHỐNG SPAM KHI BẤM THUÊ SỐ (RENT_)
   if (action.startsWith('rent_')) {
+    if (checkSpam(userId)) {
+      return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn thao tác quá nhanh, vui lòng từ từ!', show_alert: true });
+    }
+
     const serviceInfo = getServiceInfo(action);
     if (!serviceInfo) return;
 
