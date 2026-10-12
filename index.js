@@ -11,6 +11,17 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
+// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA
+function removeAccentsAndUpperCase(str) {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .trim();
+}
+
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
@@ -153,6 +164,7 @@ let isMaintenanceMode = false;
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
 const userState = new Map();
+const tempDepositData = new Map(); // Lưu tạm số tiền & họ tên chờ khách nhập
 
 function checkSpam(userId) {
   if (userId.toString() === ADMIN_ID) return false;
@@ -175,17 +187,6 @@ async function checkUserMembership(userId) {
     console.error('Lỗi check membership:', err.message);
     return false;
   }
-}
-
-const verbs = ["banh", "mua", "an", "uong", "chuyen", "gui", "nap", "tra"];
-const nouns = ["cho", "ga", "vit", "xe", "nha", "tien", "qua", "com"];
-const adjectives = ["dao", "na", "tao", "oi", "me", "xoai", "dua", "mit"];
-
-function randomText() {
-  const v = verbs[Math.floor(Math.random() * verbs.length)];
-  const n = nouns[Math.floor(Math.random() * nouns.length)];
-  const a = adjectives[Math.floor(Math.random() * adjectives.length)];
-  return `${v} ${n}${a}`;
 }
 
 let npaServiceIds = {
@@ -267,6 +268,7 @@ function getServiceInfo(action) {
 
 async function sendMainMenu(chatId, userId) {
   userState.delete(userId);
+  tempDepositData.delete(userId);
   const user = await getUser(userId);
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
@@ -314,7 +316,6 @@ async function sendMainMenu(chatId, userId) {
   });
 }
 
-// GỬI MENU GIỚI THIỆU KHÔNG DÙNG MARKDOWN ĐỂ TRÁNH LỖI HIỂN THỊ
 async function sendReferralMenu(chatId, userId, messageId) {
   userState.delete(userId);
   const user = await getUser(userId);
@@ -341,7 +342,6 @@ async function sendReferralMenu(chatId, userId, messageId) {
   };
 
   bot.deleteMessage(chatId, messageId).catch(() => {});
-
   bot.sendMessage(chatId, text, {
     reply_markup: replyMarkup,
     disable_web_page_preview: true
@@ -377,8 +377,8 @@ async function sendDepositMenu(chatId, messageId = null) {
   }
 }
 
-async function createAndSendQR(chatId, userId, amount) {
-  const content = randomText();
+async function createAndSendQR(chatId, userId, amount, fullName) {
+  const content = `${fullName} chuyen tien`;
   const orderId = 'ORD' + Date.now();
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
@@ -430,6 +430,43 @@ bot.on('message', async (msg) => {
 
   if (checkSpam(userId)) {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
+  }
+
+  // BƯỚC 2: XỬ LÝ KHI KHÁCH NHẬP HỌ VÀ TÊN
+  if (userState.get(userId) === 'awaiting_fullname') {
+    const rawFullName = removeAccentsAndUpperCase(text);
+
+    if (rawFullName.length < 3 || !rawFullName.includes(' ')) {
+      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng nhập đầy đủ Họ và Tên của bạn (Ví dụ: \`Nguyen Van A`):`);
+    }
+
+    const proposedContent = `${rawFullName} chuyen tien`;
+
+    // KIỂM TRA XEM NỘI DUNG NÀY ĐÃ TỒN TẠI TRONG ĐƠN PENDING NÀO CHƯA
+    const existingContent = await Deposit.findOne({ content: proposedContent, status: 'pending' });
+    if (existingContent) {
+      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập **Họ và Tên khác** (hoặc thêm tên đệm/số):`);
+    }
+
+    const amount = tempDepositData.get(userId);
+    userState.delete(userId);
+    tempDepositData.delete(userId);
+
+    return createAndSendQR(chatId, userId, amount, rawFullName);
+  }
+
+  // XỬ LÝ NHẬP SỐ TIỀN TÙY CHỌN
+  if (userState.get(userId) === 'awaiting_deposit_amount') {
+    const cleanNumberText = text.replace(/[^0-9]/g, '');
+    const customAmount = parseInt(cleanNumberText, 10);
+
+    if (isNaN(customAmount) || customAmount < 10000) {
+      return bot.sendMessage(chatId, `⚠️ Số tiền không hợp lệ!\n\nVui lòng nhập số tiền từ 10.000đ trở lên (Ví dụ gửi: 15000 hoặc 200000):`);
+    }
+
+    tempDepositData.set(userId, customAmount);
+    userState.set(userId, 'awaiting_fullname');
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: \`Dinh Cong Hoat\`):`);
   }
 
   if (text.startsWith('/start')) {
@@ -494,18 +531,6 @@ bot.on('message', async (msg) => {
     } else {
       return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
     }
-  }
-
-  if (userState.get(userId) === 'awaiting_deposit_amount') {
-    const cleanNumberText = text.replace(/[^0-9]/g, '');
-    const customAmount = parseInt(cleanNumberText, 10);
-
-    if (isNaN(customAmount) || customAmount < 10000) {
-      return bot.sendMessage(chatId, `⚠️ Số tiền không hợp lệ!\n\nVui lòng nhập số tiền từ 10.000đ trở lên (Ví dụ gửi: 15000 hoặc 200000):`);
-    }
-
-    userState.delete(userId);
-    return createAndSendQR(chatId, userId, customAmount);
   }
 
   if (text.startsWith('/sendall')) {
@@ -624,8 +649,18 @@ bot.on('callback_query', async (query) => {
 
   if (action === 'menu_nap') {
     userState.delete(userId);
+    tempDepositData.delete(userId);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     return sendDepositMenu(chatId);
+  }
+
+  // BƯỚC 1: KHI KHÁCH CHỌN SỐ TIỀN NHANH, BẮT ĐẦU YÊU CẦU NHẬP HỌ TÊN
+  if (action.startsWith('dep_') && action !== 'dep_custom') {
+    const amount = parseInt(action.replace('dep_', ''), 10);
+    bot.deleteMessage(chatId, messageId).catch(() => {});
+    tempDepositData.set(userId, amount);
+    userState.set(userId, 'awaiting_fullname');
+    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: \`Dinh Cong Hoat\`):`);
   }
 
   if (action === 'dep_custom') {
@@ -636,13 +671,6 @@ bot.on('callback_query', async (query) => {
       `👉 Vui lòng dán/nhập số tiền muốn nạp vào ô tin nhắn bên dưới (Tối thiểu 10.000đ).\n` +
       `*Ví dụ:* Nhập 15000 hoặc 500000`
     );
-  }
-
-  if (action.startsWith('dep_')) {
-    userState.delete(userId);
-    const amount = parseInt(action.replace('dep_', ''), 10);
-    bot.deleteMessage(chatId, messageId).catch(() => {});
-    return createAndSendQR(chatId, userId, amount);
   }
 
   if (action === 'rent_more') {
