@@ -11,7 +11,7 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
-// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA, CHỈ GIỮ LẠI CHỮ CÁI VÀ KHOẢNG TRẮNG
+// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA
 function removeAccentsAndUpperCase(str) {
   if (!str) return '';
   return str
@@ -34,7 +34,8 @@ app.post('/webhook/sepay', async (req, res) => {
     const pendingDeposit = await Deposit.findOne({
       amount: transferAmount,
       status: 'pending',
-      $expr: {$setIsSubset: [
+      $expr: {
+        $setIsSubset: [
           { $split: ["$content", " "] },
           { $split: [content, " "] }
         ]
@@ -63,7 +64,7 @@ app.post('/webhook/sepay', async (req, res) => {
                     `💵 Số tiền chuyển: ${transferAmount.toLocaleString()}đ\n`;
       
       if (bonusAmount > 0) {
-        msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
+        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
         msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
@@ -87,7 +88,7 @@ app.post('/webhook/sepay', async (req, res) => {
               user.referredBy,
               `🎁 NHẬN HOA HỒNG GIỚI THIỆU!\n\n` +
               `👤 Bạn bè (ID: ${pendingDeposit.userId}) vừa nạp thành công ${transferAmount.toLocaleString()}đ.\n` +
-              `💰 Hoa hồng nhận được (${referralCommissionPercent}%): +${commission.toLocaleString()}đ\n` +
+              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): +${commission.toLocaleString()}đ\n` +
               `💳 Số dư ví hiện tại: ${referrer.balance.toLocaleString()}đ`
             ).catch(() => {});
           }
@@ -220,6 +221,53 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
+// HÀM LẤY OTP EMAILFAKE
+async function getEmailFakeOTP(emailStr) {
+  try {
+    const cleanEmail = emailStr.trim();
+    if (!cleanEmail.includes('@')) return null;
+    const parts = cleanEmail.split('@');
+    const username = parts[0];
+    const domain = parts[1];
+
+    const targetUrl = `https://checkotpmail.com/api/get_otp?email=${encodeURIComponent(cleanEmail)}&user=${encodeURIComponent(username)}&domain=${encodeURIComponent(domain)}`;
+    const res = await axios.get(targetUrl, { timeout: 8000 });
+    
+    if (res.data) {
+      if (res.data.otp) return res.data.otp;
+      if (res.data.code) return res.data.code;
+      if (typeof res.data === 'string') {
+        const match = res.data.match(/\b\d{4,8}\b/);
+        if (match) return match[0];
+      }
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// HÀM LẤY OTP HOTMAIL
+async function getHotmailOTP(dataLine) {
+  try {
+    const cleanData = dataLine.trim();
+    const targetUrl = `https://checkotpmail.com/api/get_otp_hotmail?data=${encodeURIComponent(cleanData)}`;
+    const res = await axios.get(targetUrl, { timeout: 10000 });
+
+    if (res.data) {
+      if (res.data.otp) return res.data.otp;
+      if (res.data.code) return res.data.code;
+      if (typeof res.data === 'string') {
+        const match = res.data.match(/\b\d{4,8}\b/);
+        if (match) return match[0];
+      }
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
 async function setupBotCommands() {
   try {
     await bot.setMyCommands([
@@ -275,7 +323,7 @@ async function sendMainMenu(chatId, userId) {
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
 
-  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA\n` +
+  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA & MAIL OTP\n` +
                  `👤 ID của bạn: ${userId}\n` +
                  `💰 Số dư ví: ${userBalance}đ\n` +
                  `💳 Tổng đã nạp: ${userDeposited}đ\n`;
@@ -284,7 +332,10 @@ async function sendMainMenu(chatId, userId) {
     menuText += `🎁 Khuyến mãi nạp hiện tại: Tặng thêm +${depositBonusPercent}% vào ví!\n`;
   }
 
-  menuText += `\n👉 Mẹo: Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
+  menuText += `\n⚡ DÁN TRỰC TIẾP DỮ LIỆU VÀO ĐÂY:\n` +
+              `• Secret Key 2FA -> Mã OTP 6 số\n` +
+              `• EmailFake -> Lấy OTP EmailFake\n` +
+              `• Data Hotmail -> Lấy OTP Hotmail`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -399,7 +450,7 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    caption += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): +${bonusVal.toLocaleString()}đ\n` +
                `💰 Nhận thực tế vào ví: ${totalVal.toLocaleString()}đ\n`;
   }
 
@@ -436,11 +487,8 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // XỬ LÝ KHI KHÁCH NHẬP HỌ TÊN
   if (userState.get(userId) === 'awaiting_fullname') {
     const rawFullName = removeAccentsAndUpperCase(text);
-
-    // BẮT LỖI NẾU CÓ CHỮ SỐ HOẶC KÝ TỰ ĐẶC BIỆT HOẶC KHÔNG PHẢI CHỮ CÁI
     const isValidName = /^[A-Z\s]+$/.test(rawFullName);
 
     if (!isValidName || rawFullName.length < 3 || !rawFullName.includes(' ')) {
@@ -623,6 +671,56 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
+  // 1. TỰ ĐỘNG NHẬN DIỆN LẤY OTP HOTMAIL
+  if (text.includes('|') && (text.toLowerCase().includes('hotmail') || text.toLowerCase().includes('outlook') || text.split('|').length >= 3)) {
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    let results = [];
+
+    bot.sendMessage(chatId, `⏳ Đang quét OTP Hotmail cho ${lines.length} dòng dữ liệu...`);
+
+    for (const line of lines) {
+      const otp = await getHotmailOTP(line);
+      const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const displayAccount = emailMatch ? emailMatch[0] : line.substring(0, 20) + '...';
+
+      if (otp) {
+        results.push(`📬 Hotmail: \`${displayAccount}\`\n🔑 Mã OTP: \`${otp}\``);
+      } else {
+        results.push(`📬 Hotmail: \`${displayAccount}\`\n❌ Chưa có OTP (hoặc token lỗi)`);
+      }
+    }
+
+    if (results.length > 0) {
+      return bot.sendMessage(chatId, `📩 **KẾT QUẢ QUÉT OTP HOTMAIL:**\n\n` + results.join('\n\n'), { parse_mode: 'Markdown' });
+    }
+  }
+
+  // 2. TỰ ĐỘNG NHẬN DIỆN LẤY OTP EMAILFAKE
+  if (text.includes('@')) {
+    const lines = text.split('\n').filter(l => l.trim().length > 0);
+    let results = [];
+
+    bot.sendMessage(chatId, `⏳ Đang quét OTP EmailFake cho ${lines.length} dòng dữ liệu...`);
+
+    for (const line of lines) {
+      const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        const email = emailMatch[0];
+        const otp = await getEmailFakeOTP(email);
+        if (otp) {
+          results.push(`📧 Email: ${email}\n🔑 Mã OTP: \`${otp}\``);
+        } else {
+          results.push(`📧 Email: ${email}\n❌ Chưa nhận được OTP (hoặc hết hạn)`);
+        }
+      }
+    }
+
+    if (results.length > 0) {
+      return bot.sendMessage(chatId, `📩 **KẾT QUẢ QUÉT OTP EMAILFAKE:**\n\n` + results.join('\n\n'), { parse_mode: 'Markdown' });
+    }
+  }
+
+  // 3. TỰ ĐỘNG NHẬN DIỆN LẤY MÃ 2FA
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
@@ -632,7 +730,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: ${cleanSecret}\n✅ OTP: ${token2fa}`);
     } catch (err) {}
   } else {
-    bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ! Vui lòng kiểm tra lại.`);
+    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA, EmailFake, hoặc Data Hotmail để lấy OTP.`);
   }
 });
 
