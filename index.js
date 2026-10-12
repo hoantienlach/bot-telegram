@@ -22,13 +22,6 @@ function removeAccentsAndUpperCase(str) {
     .trim();
 }
 
-function decodeQuotedPrintable(str) {
-  if (!str) return '';
-  return str
-    .replace(/=[\r\n]+/g, '')
-    .replace(/=([0-9A-F]{2})/gi, (match, p1) => String.fromCharCode(parseInt(p1, 16)));
-}
-
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
@@ -117,7 +110,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const mongoose = require('mongoose');
 const { authenticator } = require('otplib');
-const cheerio = require('cheerio');
 
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://hoantienlach_db_user:hoantienlach@cluster0.lruwdot.mongodb.net/?appName=Cluster0';
 
@@ -165,9 +157,6 @@ bot.getMe().then(me => {
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
-
-// API Key tài khoản mailedus.us của bạn
-const MAIL_API_KEY = 'PsjufLm7naHQssvqxjgmyXYpYvS0Gm0f';
 
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
@@ -231,34 +220,6 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP QUA API SHOPPING/MAIL EDUS
-async function getEmailFakeOTP(emailStr) {
-  try {
-    const cleanEmail = emailStr.trim();
-    if (!cleanEmail.includes('@')) return null;
-
-    const apiUrl = `https://mailedus.us/api/check.php?api_key=${MAIL_API_KEY}&email=${encodeURIComponent(cleanEmail)}`;
-    
-    const res = await axios.get(apiUrl, { timeout: 10000 });
-
-    if (res.data) {
-      const data = res.data;
-      if (data.code || data.otp || data.otp_code) {
-        return data.code || data.otp || data.otp_code;
-      }
-      
-      const responseText = JSON.stringify(data);
-      const match6 = responseText.match(/\b\d{6}\b/);
-      if (match6) {
-        return match6[0];
-      }
-    }
-    return null;
-  } catch (err) {
-    return null;
-  }
-}
-
 async function setupBotCommands() {
   try {
     await bot.setMyCommands([
@@ -314,7 +275,7 @@ async function sendMainMenu(chatId, userId) {
   const userBalance = (user.balance || 0).toLocaleString();
   const userDeposited = (user.total_deposited || 0).toLocaleString();
 
-  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA & EMAILFAKE\n` +
+  let menuText = `🤖 HỆ THỐNG THUÊ SỐ TỰ ĐỘNG & 2FA\n` +
                  `👤 ID của bạn: ${userId}\n` +
                  `💰 Số dư ví: ${userBalance}đ\n` +
                  `💳 Tổng đã nạp: ${userDeposited}đ\n`;
@@ -323,9 +284,7 @@ async function sendMainMenu(chatId, userId) {
     menuText += `🎁 Khuyến mãi nạp hiện tại: Tặng thêm +${depositBonusPercent}% vào ví!\n`;
   }
 
-  menuText += `\n⚡ DÁN TRỰC TIẾP DỮ LIỆU VÀO ĐÂY:\n` +
-              `• Secret Key 2FA -> Mã OTP 6 số\n` +
-              `• Email Fake -> Lấy OTP tự động qua API Shop`;
+  menuText += `\n⚡ DÁN TRỰC TIẾP MÃ 2FA VÀO ĐÂY ĐỂ LẤY MÃ OTP 6 SỐ`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -661,32 +620,7 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // 1. TỰ ĐỘNG NHẬN DIỆN VÀ LẤY OTP KHI DÁN EMAIL
-  if (text.includes('@')) {
-    const lines = text.split('\n').filter(l => l.trim().length > 0);
-    let results = [];
-
-    bot.sendMessage(chatId, `⏳ Đang quét OTP qua API Shop cho ${lines.length} email...`);
-
-    for (const line of lines) {
-      const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-        const email = emailMatch[0];
-        const otp = await getEmailFakeOTP(email);
-        if (otp) {
-          results.push(`📧 Email: \`${email}\`\n🔑 Mã OTP: \`${otp}\``);
-        } else {
-          results.push(`📧 Email: \`${email}\`\n❌ Chưa nhận được OTP (hoặc chưa có thư)`);
-        }
-      }
-    }
-
-    if (results.length > 0) {
-      return bot.sendMessage(chatId, `📩 **KẾT QUẢ QUÉT OTP TỪ HỆ THỐNG:**\n\n` + results.join('\n\n'), { parse_mode: 'Markdown' });
-    }
-  }
-
-  // 2. TỰ ĐỘNG NHẬN DIỆN LẤY MÃ 2FA
+  // TỰ ĐỘNG NHẬN DIỆN VÀ LẤY MÃ 2FA
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
@@ -696,7 +630,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
     } catch (err) {}
   } else {
-    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA hoặc Email để lấy OTP tự động.`);
+    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA để lấy mã OTP.`);
   }
 });
 
