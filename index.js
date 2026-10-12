@@ -110,6 +110,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const mongoose = require('mongoose');
 const { authenticator } = require('otplib');
+const cheerio = require('cheerio');
 
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://hoantienlach_db_user:hoantienlach@cluster0.lruwdot.mongodb.net/?appName=Cluster0';
 
@@ -220,7 +221,7 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// HÀM LẤY OTP EMAILFAKE (TƯƠNG THÍCH EMAILFAKE.COM)
+// HÀM LẤY OTP EMAILFAKE (LỌC LẤY CHUẨN MÃ OTP 6 CHỮ SỐ CỦA TIKTOK/ĐƠN VỊ)
 async function getEmailFakeOTP(emailStr) {
   try {
     const cleanEmail = emailStr.trim();
@@ -241,9 +242,30 @@ async function getEmailFakeOTP(emailStr) {
     });
 
     if (res.data) {
-      const textData = String(res.data);
-      const match = textData.match(/\b\d{4,8}\b/);
-      if (match) return match[0];
+      const $ = cheerio.load(res.data);
+      
+      // Bỏ phần thẻ rác có chứa mốc thời gian gây nhầm lẫn
+      $('script, style, header, footer, .time').remove();
+      
+      const pageText = $('body').text() || String(res.data);
+
+      // 1. Ưu tiên tìm mã 6 số đứng sau chữ "là:", "is:", "mã:", "code:"
+      const tiktokMatch = pageText.match(/(?:mã|code|is|là)[:\s]+(\d{6})/i);
+      if (tiktokMatch && tiktokMatch[1]) {
+        return tiktokMatch[1];
+      }
+
+      // 2. Dự phòng: Quét chính xác chuỗi 6 chữ số bất kỳ
+      const match6Digits = pageText.match(/\b\d{6}\b/);
+      if (match6Digits) {
+        return match6Digits[0];
+      }
+
+      // 3. Dự phòng cuối: Bắt mã từ 4 đến 8 chữ số
+      const matchAny = pageText.match(/\b\d{4,8}\b/);
+      if (matchAny) {
+        return matchAny[0];
+      }
     }
     return null;
   } catch (err) {
