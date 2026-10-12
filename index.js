@@ -11,6 +11,7 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
+// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA, CHỈ GIỮ LẠI CHỮ CÁI VÀ KHOẢNG TRẮNG
 function removeAccentsAndUpperCase(str) {
   if (!str) return '';
   return str
@@ -33,8 +34,7 @@ app.post('/webhook/sepay', async (req, res) => {
     const pendingDeposit = await Deposit.findOne({
       amount: transferAmount,
       status: 'pending',
-      $expr: {
-        $setIsSubset: [
+      $expr: {$setIsSubset: [
           { $split: ["$content", " "] },
           { $split: [content, " "] }
         ]
@@ -63,7 +63,7 @@ app.post('/webhook/sepay', async (req, res) => {
                     `💵 Số tiền chuyển: ${transferAmount.toLocaleString()}đ\n`;
       
       if (bonusAmount > 0) {
-        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): +${bonusAmount.toLocaleString()}đ\n` +
+        msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
         msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
@@ -87,7 +87,7 @@ app.post('/webhook/sepay', async (req, res) => {
               user.referredBy,
               `🎁 NHẬN HOA HỒNG GIỚI THIỆU!\n\n` +
               `👤 Bạn bè (ID: ${pendingDeposit.userId}) vừa nạp thành công ${transferAmount.toLocaleString()}đ.\n` +
-              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): +${commission.toLocaleString()}đ\n` +
+              `💰 Hoa hồng nhận được (${referralCommissionPercent}%): +${commission.toLocaleString()}đ\n` +
               `💳 Số dư ví hiện tại: ${referrer.balance.toLocaleString()}đ`
             ).catch(() => {});
           }
@@ -284,7 +284,7 @@ async function sendMainMenu(chatId, userId) {
     menuText += `🎁 Khuyến mãi nạp hiện tại: Tặng thêm +${depositBonusPercent}% vào ví!\n`;
   }
 
-  menuText += `\n⚡ DÁN TRỰC TIẾP MÃ 2FA VÀO ĐÂY ĐỂ LẤY MÃ OTP 6 SỐ`;
+  menuText += `\n👉 Mẹo: Dán trực tiếp chuỗi 2FA hoặc Secret Key vào đây bất kỳ lúc nào để lấy mã OTP 6 số!`;
 
   if (userId === ADMIN_ID) {
     const users = await User.find({});
@@ -399,7 +399,7 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): +${bonusVal.toLocaleString()}đ\n` +
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
                `💰 Nhận thực tế vào ví: ${totalVal.toLocaleString()}đ\n`;
   }
 
@@ -436,8 +436,11 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
+  // XỬ LÝ KHI KHÁCH NHẬP HỌ TÊN
   if (userState.get(userId) === 'awaiting_fullname') {
     const rawFullName = removeAccentsAndUpperCase(text);
+
+    // BẮT LỖI NẾU CÓ CHỮ SỐ HOẶC KÝ TỰ ĐẶC BIỆT HOẶC KHÔNG PHẢI CHỮ CÁI
     const isValidName = /^[A-Z\s]+$/.test(rawFullName);
 
     if (!isValidName || rawFullName.length < 3 || !rawFullName.includes(' ')) {
@@ -620,17 +623,16 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/')) return;
 
-  // TỰ ĐỘNG NHẬN DIỆN VÀ LẤY MÃ 2FA
   let rawSecret = text.includes('|') ? text.split('|').pop() : text;
   let cleanSecret = rawSecret.toUpperCase().replace(/[^A-Z2-7]/g, '');
 
   if (cleanSecret.length >= 16) {
     try {
       const token2fa = authenticator.generate(cleanSecret);
-      return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: \`${cleanSecret}\`\n✅ OTP: \`${token2fa}\``, { parse_mode: 'Markdown' });
+      return bot.sendMessage(chatId, `🔐 MÃ 2FA:\n🔑 Secret: ${cleanSecret}\n✅ OTP: ${token2fa}`);
     } catch (err) {}
   } else {
-    bot.sendMessage(chatId, `❌ Cú pháp không hợp lệ! Hãy dán Mã 2FA để lấy mã OTP.`);
+    bot.sendMessage(chatId, `❌ Chuỗi Secret Key không hợp lệ! Vui lòng kiểm tra lại.`);
   }
 });
 
@@ -866,9 +868,8 @@ bot.on('callback_query', async (query) => {
             
             bot.sendMessage(
               chatId,
-              `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${reqId}\n🔑 Mã OTP: \`${otpCode}\``,
+              `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${reqId}\n🔑 Mã OTP: ${otpCode}`,
               {
-                parse_mode: 'Markdown',
                 reply_markup: {
                   inline_keyboard: [[{ text: '🔄 Lấy số khác cùng loại', callback_data: action }]]
                 }
