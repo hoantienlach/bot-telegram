@@ -229,11 +229,14 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
+// 🛠️ ĐÃ CẬP NHẬT: CHỈ HIỂN THỊ LỆNH TRONG CHAT RIÊNG TƯ (KHÔNG HIỆN TRONG GROUP)
 async function setupBotCommands() {
   try {
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' }
-    ]);
+    ], {
+      scope: { type: 'all_private_chats' }
+    });
 
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
