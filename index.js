@@ -74,7 +74,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -432,7 +432,7 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 }
 
 bot.on('message', async (msg) => {
-  // 🔴 HOÀN TOÀN BỎ QUA VÀ KHÔNG PHẢI PHẢN HỒI BẤT KỲ TIN NHẮN NÀO TRONG NHÓM (KỂ CẢ ADMIN)
+  // 🔴 HOÀN TOÀN BỎ QUA VÀ KHÔNG PHẢI PHẢN HỒI BẤT KỲ TIN NHẮN NÀO TRONG NHÓM
   if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
     return;
   }
@@ -853,6 +853,8 @@ bot.on('callback_query', async (query) => {
       );
 
       let isCompleted = false;
+      
+      // 🛠️ ĐÃ TỐI ƯU: VÒNG LẶP CHECK OTP TỪ NPA
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
@@ -868,11 +870,27 @@ bot.on('callback_query', async (query) => {
               }
             }
           } else if (provider === 'npa') {
-            const otpRes = await axios.post(`https://otpapi.cmsnpa.com/api/v1/check_code`, { id: reqId.toString() }, {
-              headers: { 'Authorization': `Bearer ${API_KEY_NPA}`, 'Content-Type': 'application/json' }
-            });
-            if (otpRes.data && otpRes.data.ok === true && otpRes.data.code) {
-              otpCode = otpRes.data.code;
+            const otpRes = await axios.post(
+              'https://otpapi.cmsnpa.com/api/v1/check_code', 
+              { id: reqId.toString() }, 
+              {
+                headers: { 
+                  'Authorization': `Bearer ${API_KEY_NPA}`, 
+                  'Content-Type': 'application/json' 
+                }
+              }
+            );
+
+            if (otpRes.data) {
+              if (otpRes.data.ok === true && otpRes.data.code) {
+                otpCode = otpRes.data.code;
+              } else if (otpRes.data.Result && otpRes.data.Result.Code) {
+                otpCode = otpRes.data.Result.Code;
+              } else if (otpRes.data.code && typeof otpRes.data.code === 'string') {
+                otpCode = otpRes.data.code;
+              } else if (otpRes.data.sms && typeof otpRes.data.sms === 'string') {
+                otpCode = otpRes.data.sms;
+              }
             }
           }
 
@@ -892,7 +910,7 @@ bot.on('callback_query', async (query) => {
             ).catch(() => {});
           }
         } catch (e) {}
-      }, 10000);
+      }, 3000); // Tăng tốc quét 3 giây/lần
 
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
