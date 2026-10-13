@@ -28,18 +28,27 @@ app.post('/webhook/sepay', async (req, res) => {
     const data = req.body;
     console.log('👉 Nhận Webhook SePay:', data);
 
-    const content = (data.content || data.description || '').toLowerCase();
+    const sepayContent = (data.content || data.description || '').toLowerCase();
     const transferAmount = parseInt(data.transferAmount || data.amount || 0, 10);
 
-    const pendingDeposit = await Deposit.findOne({
+    if (!transferAmount || !sepayContent) {
+      return res.status(200).json({ success: false, message: 'Dữ liệu không hợp lệ' });
+    }
+
+    const pendingDeposits = await Deposit.find({
       amount: transferAmount,
-      status: 'pending',
-      $expr: {$setIsSubset: [
-          { $split: ["$content", " "] },
-          { $split: [content, " "] }
-        ]
-      }
+      status: 'pending'
     });
+
+    let pendingDeposit = null;
+
+    for (const dep of pendingDeposits) {
+      const dbContent = dep.content.toLowerCase();
+      if (sepayContent.includes(dbContent)) {
+        pendingDeposit = dep;
+        break;
+      }
+    }
 
     if (pendingDeposit) {
       pendingDeposit.status = 'success';
@@ -428,7 +437,6 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
-  // 🔴 KIỂM TRA THÀNH VIÊN NHÓM BẮT BUỘC Ở ĐẦU TIÊN
   const isJoined = await checkUserMembership(userId);
   if (!isJoined && userId !== ADMIN_ID) {
     return bot.sendMessage(
@@ -454,11 +462,8 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  // XỬ LÝ KHI KHÁCH NHẬP HỌ TÊN
   if (userState.get(userId) === 'awaiting_fullname') {
     const rawFullName = removeAccentsAndUpperCase(text);
-
-    // BẮT LỖI NẾU CÓ CHỮ SỐ HOẶC KÝ TỰ ĐẶC BIỆT HOẶC KHÔNG PHẢI CHỮ CÁI
     const isValidName = /^[A-Z\s]+$/.test(rawFullName);
 
     if (!isValidName || rawFullName.length < 3 || !rawFullName.includes(' ')) {
@@ -643,7 +648,6 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  // 🔴 KIỂM TRA THÀNH VIÊN KHI BẤM NÚT
   const isJoined = await checkUserMembership(userId);
   if (!isJoined && userId !== ADMIN_ID) {
     return bot.answerCallbackQuery(query.id, { 
