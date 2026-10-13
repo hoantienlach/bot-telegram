@@ -11,7 +11,6 @@ app.get('/', (req, res) => {
 let depositBonusPercent = 0;
 let referralCommissionPercent = 10;
 
-// HÀM CHUYỂN TIẾNG VIỆT CÓ DẤU THÀNH KHÔNG DẤU & IN HOA, CHỈ GIỮ LẠI CHỮ CÁI VÀ KHOẢNG TRẮNG
 function removeAccentsAndUpperCase(str) {
   if (!str) return '';
   return str
@@ -229,7 +228,6 @@ async function updateNpaServiceIds() {
 }
 updateNpaServiceIds();
 
-// 🛠️ ĐÃ CẬP NHẬT: CHỈ HIỂN THỊ LỆNH TRONG CHAT RIÊNG TƯ (KHÔNG HIỆN TRONG GROUP)
 async function setupBotCommands() {
   try {
     await bot.setMyCommands([
@@ -434,6 +432,11 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 }
 
 bot.on('message', async (msg) => {
+  // 🔴 HOÀN TOÀN BỎ QUA VÀ KHÔNG PHẢI PHẢN HỒI BẤT KỲ TIN NHẮN NÀO TRONG NHÓM (KỂ CẢ ADMIN)
+  if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
+    return;
+  }
+
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
   const text = msg.text;
