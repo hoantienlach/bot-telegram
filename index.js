@@ -452,7 +452,7 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(
         chatId,
         `👋 Xin chào @${msg.from.username || msg.from.first_name || 'bạn'}!\n` +
-        `👉 Vui lòng **nhắn riêng cho bot** để sử dụng dịch vụ thuê số và nạp tiền nhé!`,
+        `👉 Vui lòng **nhắn riêng cho bot** để sử dụng dịch vụ nhé!`,
         {
           reply_to_message_id: msg.message_id,
           reply_markup: {
