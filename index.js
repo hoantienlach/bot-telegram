@@ -428,6 +428,24 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
+  // 🔴 KIỂM TRA THÀNH VIÊN NHÓM BẮT BUỘC Ở ĐẦU TIÊN
+  const isJoined = await checkUserMembership(userId);
+  if (!isJoined && userId !== ADMIN_ID) {
+    return bot.sendMessage(
+      chatId, 
+      `⚠️ BẠN CHƯA THAM GIA NHÓM!\n\n` +
+      `👉 Vui lòng tham gia nhóm chính thức của hệ thống để sử dụng đầy đủ các tính năng thuê số và nạp tiền tự động.`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔗 Tham gia nhóm ngay', url: INVITE_LINK }],
+            [{ text: '🔄 Đã tham gia, bấm để tiếp tục /start', callback_data: 'back_main' }]
+          ]
+        }
+      }
+    );
+  }
+
   if (isMaintenanceMode && userId !== ADMIN_ID) {
     return bot.sendMessage(chatId, `🛠️ HỆ THỐNG ĐANG BẢO TRÌ\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`);
   }
@@ -583,23 +601,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  const isJoined = await checkUserMembership(userId);
-  if (!isJoined) {
-    return bot.sendMessage(
-      chatId, 
-      `⚠️ BẠN CHƯA THAM GIA NHÓM!\n\n` +
-      `👉 Vui lòng tham gia nhóm chính thức của hệ thống để sử dụng đầy đủ các tính năng thuê số và nạp tiền tự động.`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🔗 Tham gia nhóm ngay', url: INVITE_LINK }],
-            [{ text: '🔄 Đã tham gia, bấm để tiếp tục /start', callback_data: 'back_main' }]
-          ]
-        }
-      }
-    );
-  }
-
   if (text.startsWith('/menu')) {
     return sendMainMenu(chatId, userId);
   }
@@ -642,13 +643,17 @@ bot.on('callback_query', async (query) => {
   const userId = query.from.id.toString();
   const action = query.data;
 
-  if (isMaintenanceMode && userId !== ADMIN_ID) {
-    return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
+  // 🔴 KIỂM TRA THÀNH VIÊN KHI BẤM NÚT
+  const isJoined = await checkUserMembership(userId);
+  if (!isJoined && userId !== ADMIN_ID) {
+    return bot.answerCallbackQuery(query.id, { 
+      text: `❌ Bạn chưa tham gia nhóm chính thức! Vui lòng tham gia nhóm để sử dụng.`, 
+      show_alert: true 
+    });
   }
 
-  const isJoined = await checkUserMembership(userId);
-  if (!isJoined) {
-    return bot.answerCallbackQuery(query.id, { text: `❌ Vui lòng bấm tham gia nhóm trước!`, show_alert: true });
+  if (isMaintenanceMode && userId !== ADMIN_ID) {
+    return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
   }
 
   const user = await getUser(userId);
