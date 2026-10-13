@@ -74,7 +74,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -440,7 +440,6 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 }
 
 bot.on('message', async (msg) => {
-  // 🔴 HOÀN TOÀN BỎ QUA VÀ KHÔNG PHẢI PHẢN HỒI BẤT KỲ TIN NHẮN NÀO TRONG NHÓM
   if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
     return;
   }
@@ -646,7 +645,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 🔻 LỆNH TRỪ TIỀN (TRỪ ĐỒNG THỜI CẢ SỐ DƯ LẪN TỔNG NẠP CỦA USER)
   if (text.startsWith('/tru')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
@@ -681,7 +679,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 🔻 LỆNH SỬA TỔNG TIỀN NẠP THỦ CÔNG DÀNH CHO ADMIN
   if (text.startsWith('/setnap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
@@ -890,13 +887,26 @@ bot.on('callback_query', async (query) => {
       if (provider === 'gmailotp') {
         const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY_GMAILOTP}&id=${serviceId}`);
         const resData = apiResponse.data;
-        if (resData && resData.success === true) {
-          rawPhone = resData.number || '';
-          reqId = resData.request_id || 'N/A';
+        
+        console.log(`🔍 Phản hồi GmailOTP cho dịch vụ ${serviceId}:`, resData);
+
+        const phoneNumber = resData ? (resData.number || resData.phone || resData.phoneNumber || resData.msg) : null;
+        const requestId = resData ? (resData.request_id || resData.id || resData.requestId) : null;
+
+        if (phoneNumber && typeof phoneNumber === 'string' && phoneNumber.length > 5) {
+          rawPhone = phoneNumber;
+          reqId = requestId || 'N/A';
         } else {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
+
+          // 🛠️ BÁO LỖI CHI TIẾT RIÊNG CHO ADMIN TRONG TELEGRAM (GMAILOTP)
+          if (isAdmin) {
+            const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
+            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - GMAILOTP]\n- Dịch vụ: ${countryLabel} (ID: ${serviceId})\n- Phản hồi từ web: ${errorDetail}`);
+          }
+
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       } else if (provider === 'npa') {
@@ -904,6 +914,9 @@ bot.on('callback_query', async (query) => {
           headers: { 'Authorization': `Bearer ${API_KEY_NPA}`, 'Content-Type': 'application/json' }
         });
         const resData = apiResponse.data;
+
+        console.log(`🔍 Phản hồi NPA cho dịch vụ ${serviceId}:`, resData);
+
         if (resData && resData.ResponseCode === 0 && resData.Result) {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
@@ -911,6 +924,13 @@ bot.on('callback_query', async (query) => {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
+
+          // 🛠️ BÁO LỖI CHI TIẾT RIÊNG CHO ADMIN TRONG TELEGRAM (NPA)
+          if (isAdmin) {
+            const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
+            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - NPA]\n- Dịch vụ: ${countryLabel} (Server: ${serviceId})\n- Phản hồi từ API NPA: ${errorDetail}`);
+          }
+
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau hoặc chọn cổng khác!`);
         }
       }
