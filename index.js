@@ -240,6 +240,7 @@ async function setupBotCommands() {
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
       { command: 'tru', description: 'Admin: Trừ tiền trực tiếp' },
+      { command: 'setnap', description: 'Admin: Chỉnh sửa tổng nạp của user' },
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
@@ -645,7 +646,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 🔻 BỔ SUNG LỆNH TRỪ TIỀN USER DÀNH CHO ADMIN
+  // 🔻 LỆNH TRỪ TIỀN (TRỪ ĐỒNG THỜI CẢ SỐ DƯ LẪN TỔNG NẠP CỦA USER)
   if (text.startsWith('/tru')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
@@ -668,7 +669,7 @@ bot.on('message', async (msg) => {
 
       const updatedUser = await User.findOneAndUpdate(
         { userId: targetUserId },
-        { $inc: { balance: -amount } },
+        { $inc: { balance: -amount, total_deposited: -amount } },
         { new: true }
       );
 
@@ -678,6 +679,33 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, `⚠️ Cú pháp: /tru <userId> <số_tiền>`);
     }
     return;
+  }
+
+  // 🔻 LỆNH SỬA TỔNG TIỀN NẠP THỦ CÔNG DÀNH CHO ADMIN
+  if (text.startsWith('/setnap')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
+    const parts = text.split(' ');
+    if (parts.length >= 3) {
+      const targetUserId = parts[1];
+      const newTotal = parseInt(parts[2], 10);
+      if (isNaN(newTotal) || newTotal < 0) {
+        return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ! Ví dụ: /setnap 5426720868 0`);
+      }
+
+      const updatedUser = await User.findOneAndUpdate(
+        { userId: targetUserId },
+        { $set: { total_deposited: newTotal } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        return bot.sendMessage(chatId, `❌ Không tìm thấy user ID ${targetUserId}`);
+      }
+
+      return bot.sendMessage(chatId, `✅ Đã cập nhật chỉ số Tổng Nạp của user ${targetUserId} thành: ${newTotal.toLocaleString()}đ`);
+    } else {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp: /setnap <userId> <số_tiền_mới>`);
+    }
   }
 
   if (text.startsWith('/')) return;
