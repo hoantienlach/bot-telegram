@@ -74,7 +74,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -239,6 +239,7 @@ async function setupBotCommands() {
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
+      { command: 'tru', description: 'Admin: Trừ tiền trực tiếp' },
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
@@ -300,11 +301,17 @@ async function sendMainMenu(chatId, userId) {
     const users = await User.find({});
     const totalUsers = users.length;
     let totalDepositedAll = 0;
-    users.forEach(u => { totalDepositedAll += (u.total_deposited || 0); });
+    let totalBalanceAll = 0;
+
+    users.forEach(u => { 
+      totalDepositedAll += (u.total_deposited || 0); 
+      totalBalanceAll += (u.balance || 0);
+    });
 
     menuText += `\n\n📊 THỐNG KÊ HỆ THỐNG:\n` +
                 `👥 Tổng thành viên: ${totalUsers} người\n` +
                 `💵 Tổng tiền nạp tất cả: ${totalDepositedAll.toLocaleString()}đ\n` +
+                `💰 Tổng số dư hiện tại trong ví: ${totalBalanceAll.toLocaleString()}đ\n` +
                 `🎁 Mức khuyến mãi nạp: ${depositBonusPercent}%\n` +
                 `🤝 Hoa hồng giới thiệu: ${referralCommissionPercent}%\n` +
                 `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`;
@@ -622,6 +629,9 @@ bot.on('message', async (msg) => {
     if (parts.length >= 3) {
       const targetUserId = parts[1];
       const amount = parseInt(parts[2], 10);
+      if (isNaN(amount) || amount <= 0) {
+        return bot.sendMessage(chatId, `⚠️ Cú pháp nạp không hợp lệ! Ví dụ: /nap 6416498175 10000`);
+      }
       const user = await User.findOneAndUpdate(
         { userId: targetUserId },
         { $inc: { balance: amount, total_deposited: amount } },
@@ -629,6 +639,43 @@ bot.on('message', async (msg) => {
       );
       bot.sendMessage(chatId, `✅ Đã nạp +${amount.toLocaleString()}đ cho user ${targetUserId}`);
       bot.sendMessage(targetUserId, `🎉 Tài khoản được cộng: +${amount.toLocaleString()}đ\n💰 Số dư: ${user.balance.toLocaleString()}đ`).catch(() => {});
+    } else {
+      bot.sendMessage(chatId, `⚠️ Cú pháp: /nap <userId> <số_tiền>`);
+    }
+    return;
+  }
+
+  // 🔻 BỔ SUNG LỆNH TRỪ TIỀN USER DÀNH CHO ADMIN
+  if (text.startsWith('/tru')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
+    const parts = text.split(' ');
+    if (parts.length >= 3) {
+      const targetUserId = parts[1];
+      const amount = parseInt(parts[2], 10);
+      if (isNaN(amount) || amount <= 0) {
+        return bot.sendMessage(chatId, `⚠️ Cú pháp trừ tiền không hợp lệ! Ví dụ: /tru 6416498175 10000`);
+      }
+
+      const targetUser = await User.findOne({ userId: targetUserId });
+      if (!targetUser) {
+        return bot.sendMessage(chatId, `❌ Không tìm thấy thành viên ID: ${targetUserId}`);
+      }
+
+      const userBalance = targetUser.balance || 0;
+      if (userBalance < amount) {
+        return bot.sendMessage(chatId, `⚠️ Số dư user hiện tại (${userBalance.toLocaleString()}đ) nhỏ hơn số tiền muốn trừ (${amount.toLocaleString()}đ)!`);
+      }
+
+      const updatedUser = await User.findOneAndUpdate(
+        { userId: targetUserId },
+        { $inc: { balance: -amount } },
+        { new: true }
+      );
+
+      bot.sendMessage(chatId, `✅ Đã trừ -${amount.toLocaleString()}đ của user ${targetUserId}.\n💰 Số dư mới của user: ${updatedUser.balance.toLocaleString()}đ`);
+      bot.sendMessage(targetUserId, `💸 Tài khoản bị trừ: -${amount.toLocaleString()}đ\n💳 Số dư ví hiện tại: ${updatedUser.balance.toLocaleString()}đ`).catch(() => {});
+    } else {
+      bot.sendMessage(chatId, `⚠️ Cú pháp: /tru <userId> <số_tiền>`);
     }
     return;
   }
@@ -854,7 +901,6 @@ bot.on('callback_query', async (query) => {
 
       let isCompleted = false;
       
-      // 🛠️ ĐÃ TỐI ƯU: VÒNG LẶP CHECK OTP TỪ NPA
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
@@ -910,7 +956,7 @@ bot.on('callback_query', async (query) => {
             ).catch(() => {});
           }
         } catch (e) {}
-      }, 3000); // Tăng tốc quét 3 giây/lần
+      }, 3000);
 
       const timeoutRefund = setTimeout(async () => {
         if (isCompleted) return;
