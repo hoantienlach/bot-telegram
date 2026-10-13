@@ -440,15 +440,31 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 }
 
 bot.on('message', async (msg) => {
-  if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
-    return;
-  }
-
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
   const text = msg.text;
 
   if (!text) return;
+
+  // 🔴 XỬ LÝ KHI TIN NHẮN TỪ NHÓM (GROUP / SUPERGROUP)
+  if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
+    if (text.startsWith('/start')) {
+      return bot.sendMessage(
+        chatId,
+        `👋 Xin chào @${msg.from.username || msg.from.first_name || 'bạn'}!\n` +
+        `👉 Vui lòng **nhắn riêng cho bot** để sử dụng dịch vụ thuê số và nạp tiền nhé!`,
+        {
+          reply_to_message_id: msg.message_id,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '💬 Nhắn riêng cho Bot ngay', url: `https://t.me/${botUsername}?start=from_group` }]
+            ]
+          }
+        }
+      ).catch(() => {});
+    }
+    return; // Bỏ qua mọi tin nhắn khác trong nhóm
+  }
 
   const isJoined = await checkUserMembership(userId);
   if (!isJoined && userId !== ADMIN_ID) {
@@ -901,7 +917,6 @@ bot.on('callback_query', async (query) => {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
 
-          // 🛠️ BÁO LỖI CHI TIẾT RIÊNG CHO ADMIN TRONG TELEGRAM (GMAILOTP)
           if (isAdmin) {
             const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - GMAILOTP]\n- Dịch vụ: ${countryLabel} (ID: ${serviceId})\n- Phản hồi từ web: ${errorDetail}`);
@@ -925,7 +940,6 @@ bot.on('callback_query', async (query) => {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
           }
 
-          // 🛠️ BÁO LỖI CHI TIẾT RIÊNG CHO ADMIN TRONG TELEGRAM (NPA)
           if (isAdmin) {
             const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - NPA]\n- Dịch vụ: ${countryLabel} (Server: ${serviceId})\n- Phản hồi từ API NPA: ${errorDetail}`);
