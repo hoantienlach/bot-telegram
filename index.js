@@ -765,7 +765,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 📌 LỆNH /HOAN (ĐÃ HỖ TRỢ TÌM KIẾM LINH HOẠT STRING / NUMBER ĐỂ KHÔNG BỊ MẤT ĐƠN)
+  // 📌 LỆNH /HOAN (TÌM KIẾM CẢ STRING VÀ NUMBER)
   if (text.startsWith('/hoan')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
@@ -1095,6 +1095,7 @@ bot.on('callback_query', async (query) => {
 
       let isCompleted = false;
       
+      // 📌 SỬA LỖI TRÙNG LẶP OTP: Đặt cờ kiểm tra ngắt vòng lặp ngay khi có kết quả
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
@@ -1134,7 +1135,8 @@ bot.on('callback_query', async (query) => {
             }
           }
 
-          if (otpCode) {
+          if (otpCode && !isCompleted) {
+            // Ngắt vòng lặp ngay lập tức trước khi thực hiện các tác vụ bất đồng bộ
             isCompleted = true;
             clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
