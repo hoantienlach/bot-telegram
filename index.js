@@ -317,14 +317,14 @@ function getServiceInfo(action) {
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
     
-    'rent_tt_us10': { name: 'TikTok US 10', price: 1200, service_id: '19272', provider: 'gmailotp' },
-    'rent_tt_us9': { name: 'TikTok US 9', price: 1200, service_id: '19194', provider: 'gmailotp' },
-    'rent_tt_indo19': { name: 'TikTok Indonesia 19', price: 1200, service_id: '19173', provider: 'gmailotp' },
-    'rent_tt_indo21': { name: 'TikTok Indonesia 21', price: 1200, service_id: '19244', provider: 'gmailotp' },
-    'rent_tt_chile12': { name: 'TikTok Chile 12', price: 1200, service_id: '26145', provider: 'gmailotp' },
-    'rent_tt_chile7': { name: 'TikTok Chile 7', price: 1200, service_id: '3421', provider: 'gmailotp' },
-    'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1200, service_id: '3429', provider: 'gmailotp' },
-    'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1200, service_id: '3430', provider: 'gmailotp' },
+    'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
+    'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
+    'rent_tt_indo19': { name: 'TikTok Indonesia +62', price: 1200, service_id: '19173', provider: 'gmailotp' },
+    'rent_tt_indo21': { name: 'TikTok Indonesia +62', price: 1200, service_id: '19244', provider: 'gmailotp' },
+    'rent_tt_chile12': { name: 'TikTok Chile +56', price: 1200, service_id: '26145', provider: 'gmailotp' },
+    'rent_tt_chile7': { name: 'TikTok Chile +56', price: 1200, service_id: '3421', provider: 'gmailotp' },
+    'rent_tt_colombia7': { name: 'TikTok Colombia +57', price: 1200, service_id: '3429', provider: 'gmailotp' },
+    'rent_tt_colombia8': { name: 'TikTok Colombia +57', price: 1200, service_id: '3430', provider: 'gmailotp' },
     
     'rent_npa_grab': { name: 'Grap', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' }
   };
@@ -959,20 +959,20 @@ bot.on('callback_query', async (query) => {
       }
     });
   }
-
+https://github.com/hoantienlach/bot-telegram/tree/main
   if (action === 'menu_tiktok') {
     return bot.editMessageText(`🎵 CHỌN MÃ VÙNG TIKTOK`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🎵 TikTok US 10 - 1.200đ', callback_data: 'rent_tt_us10' }],
-          [{ text: '🎵 TikTok US 9 - 1.200đ', callback_data: 'rent_tt_us9' }],
-          [{ text: '🎵 TikTok Indonesia 19 - 1.200đ', callback_data: 'rent_tt_indo19' }],
-          [{ text: '🎵 TikTok Indonesia 21 - 1.200đ', callback_data: 'rent_tt_indo21' }],
-          [{ text: '🎵 TikTok Chile 12 - 1.200đ', callback_data: 'rent_tt_chile12' }],
-          [{ text: '🎵 TikTok Chile 7 - 1.200đ', callback_data: 'rent_tt_chile7' }],
-          [{ text: '🎵 TikTok Colombia 7 - 1.200đ', callback_data: 'rent_tt_colombia7' }],
-          [{ text: '🎵 TikTok Colombia 8 - 1.200đ', callback_data: 'rent_tt_colombia8' }],
+          [{ text: '🎵 TikTok US +1 - 1.200đ', callback_data: 'rent_tt_us10' }],
+          [{ text: '🎵 TikTok US +1 - 1.200đ', callback_data: 'rent_tt_us9' }],
+          [{ text: '🎵 TikTok Indonesia +62 - 1.200đ', callback_data: 'rent_tt_indo19' }],
+          [{ text: '🎵 TikTok Indonesia +62 - 1.200đ', callback_data: 'rent_tt_indo21' }],
+          [{ text: '🎵 TikTok Chile +56 - 1.200đ', callback_data: 'rent_tt_chile12' }],
+          [{ text: '🎵 TikTok Chile +56 - 1.200đ', callback_data: 'rent_tt_chile7' }],
+          [{ text: '🎵 TikTok Colombia +57 - 1.200đ', callback_data: 'rent_tt_colombia7' }],
+          [{ text: '🎵 TikTok Colombia +57 - 1.200đ', callback_data: 'rent_tt_colombia8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
