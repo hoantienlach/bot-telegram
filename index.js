@@ -92,7 +92,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -166,6 +166,7 @@ const orderSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   price: { type: Number, required: true },
   serviceName: { type: String },
+  status: { type: String, default: 'pending' },
   createdAt: { type: Date, default: Date.now, expires: 86400 }
 });
 const Order = mongoose.model('Order', orderSchema);
@@ -292,7 +293,7 @@ async function setupBotCommands() {
       { command: 'start', description: 'Mở menu thuê số & ví' },
       { command: 'nap', description: 'Admin: Nạp tiền qua tên' },
       { command: 'tru', description: 'Admin: Trừ tiền qua tên' },
-      { command: 'hoan', description: 'Admin: Hoàn tiền nhanh qua mã đơn' },
+      { command: 'hoan', description: 'Admin: Hoàn tiền qua mã đơn' },
       { command: 'setnap', description: 'Admin: Điều chỉnh tổng nạp qua tên' },
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
@@ -685,10 +686,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  if (text.startsWith('/menu')) {
-    return sendMainMenu(chatId, userId);
-  }
-
   // 📌 LỆNH /NAP QUA HỌ VÀ TÊN
   if (text.startsWith('/nap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
@@ -768,15 +765,26 @@ bot.on('message', async (msg) => {
     return;
   }
 
+  // 📌 LỆNH /HOAN (ĐÃ HỖ TRỢ TÌM KIẾM LINH HOẠT STRING / NUMBER ĐỂ KHÔNG BỊ MẤT ĐƠN)
   if (text.startsWith('/hoan')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
     if (parts.length >= 2) {
       const targetReqId = parts[1].trim();
 
-      const orderData = await Order.findOne({ reqId: targetReqId });
+      const orderData = await Order.findOne({
+        $or: [
+          { reqId: targetReqId },
+          { reqId: parseInt(targetReqId, 10) }
+        ]
+      });
+
       if (!orderData) {
-        return bot.sendMessage(chatId, `❌ Không tìm thấy thông tin đơn hàng có mã: ${targetReqId} (hoặc đơn hàng đã quá hạn 24h).`);
+        return bot.sendMessage(chatId, `❌ Không tìm thấy thông tin đơn hàng có mã: ${targetReqId} trong hệ thống.`);
+      }
+
+      if (orderData.status === 'refunded') {
+        return bot.sendMessage(chatId, `⚠️ Đơn hàng ${targetReqId} này đã được hoàn tiền trước đó rồi!`);
       }
 
       const targetUserId = orderData.userId;
@@ -792,7 +800,8 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, `❌ Không tìm thấy user ID ${targetUserId} trong hệ thống.`);
       }
 
-      await Order.deleteOne({ reqId: targetReqId });
+      orderData.status = 'refunded';
+      await orderData.save();
 
       bot.sendMessage(
         chatId, 
@@ -1069,7 +1078,7 @@ bot.on('callback_query', async (query) => {
       }
 
       if (reqId && reqId !== 'N/A') {
-        await Order.create({ reqId: reqId.toString(), userId: userId, price: price, serviceName: countryLabel }).catch(() => {});
+        await Order.create({ reqId: reqId.toString(), userId: userId, price: price, serviceName: countryLabel, status: 'pending' }).catch(() => {});
       }
 
       const balanceDisplay = isAdmin ? "Miễn phí (Admin)" : `${updatedUser.balance.toLocaleString()}đ`;
@@ -1130,6 +1139,10 @@ bot.on('callback_query', async (query) => {
             clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
             
+            if (reqId && reqId !== 'N/A') {
+              await Order.updateOne({ reqId: reqId.toString() }, { $set: { status: 'completed' } }).catch(() => {});
+            }
+
             bot.sendMessage(
               chatId,
               `🎉 ĐÃ NHẬN ĐƯỢC MÃ OTP CHO ĐƠN ${reqId}\n🔑 Mã OTP: ${otpCode}`,
@@ -1157,6 +1170,10 @@ bot.on('callback_query', async (query) => {
           refundMsg = `⏰ ĐÃ HẾT 5 PHÚT! Đã hủy đơn hàng ${reqId} (Tài khoản Admin miễn phí).`;
         } else {
           await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+        }
+
+        if (reqId && reqId !== 'N/A') {
+          await Order.updateOne({ reqId: reqId.toString() }, { $set: { status: 'failed' } }).catch(() => {});
         }
 
         bot.sendMessage(chatId, refundMsg, {
