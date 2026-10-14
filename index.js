@@ -310,7 +310,7 @@ setupBotCommands();
 function getServiceInfo(action) {
   const map = {
     'rent_npa_shopee_tl': { name: 'Shopee', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
-    'rent_npa_shopee_call': { name: 'Shopee Call', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_npa_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_npa_shopee_bo': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
@@ -940,7 +940,7 @@ bot.on('callback_query', async (query) => {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee - 4.500đ', callback_data: 'rent_npa_shopee_tl' }],
-          [{ text: '🛍️ Shopee Call - 4.000đ', callback_data: 'rent_npa_shopee_call' }],
+          [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_npa_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
           [{ text: '🛍️ Shopee 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
