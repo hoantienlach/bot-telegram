@@ -49,9 +49,27 @@ app.post('/webhook/sepay', async (req, res) => {
       }
     }
 
+    if (!pendingDeposit) {
+      const allUsers = await User.find({ fullName: { $ne: null } });
+      for (const u of allUsers) {
+        const nameClean = u.fullName.toLowerCase();
+        if (sepayContent.includes(nameClean)) {
+          pendingDeposit = {
+            userId: u.userId,
+            amount: transferAmount,
+            status: 'pending',
+            content: u.fullName
+          };
+          break;
+        }
+      }
+    }
+
     if (pendingDeposit) {
-      pendingDeposit.status = 'success';
-      await pendingDeposit.save();
+      if (pendingDeposit.save) {
+        pendingDeposit.status = 'success';
+        await pendingDeposit.save();
+      }
 
       let finalReceiveAmount = transferAmount;
       let bonusAmount = 0;
@@ -74,7 +92,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -231,7 +249,6 @@ async function checkUserMembership(userId) {
   }
 }
 
-// 📌 TỰ ĐỘNG CẬP NHẬT MÃ DỊCH VỤ NPA TỪ API
 let npaServiceIds = {
   shopee_tl: 'dyn_86a0db7d3c',
   shopee_call: 'dyn_d8f753cd7c',
@@ -273,10 +290,10 @@ async function setupBotCommands() {
 
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
-      { command: 'nap', description: 'Admin: Nạp tiền trực tiếp' },
-      { command: 'tru', description: 'Admin: Trừ tiền trực tiếp' },
+      { command: 'nap', description: 'Admin: Nạp tiền qua tên' },
+      { command: 'tru', description: 'Admin: Trừ tiền qua tên' },
       { command: 'hoan', description: 'Admin: Hoàn tiền nhanh qua mã đơn' },
-      { command: 'setnap', description: 'Admin: Chỉnh sửa tổng nạp của user' },
+      { command: 'setnap', description: 'Admin: Điều chỉnh tổng nạp qua tên' },
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
@@ -290,11 +307,10 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 MAPPING DỊCH VỤ VỚI GIÁ TIỀN MỚI
 function getServiceInfo(action) {
   const map = {
     'rent_npa_shopee_tl': { name: 'Shopee', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
-    'rent_npa_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_npa_shopee_call': { name: 'Shopee Call', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_npa_shopee_bo': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
@@ -673,25 +689,82 @@ bot.on('message', async (msg) => {
     return sendMainMenu(chatId, userId);
   }
 
+  // 📌 LỆNH /NAP QUA HỌ VÀ TÊN
   if (text.startsWith('/nap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
-    const parts = text.split(' ');
-    if (parts.length >= 3) {
-      const targetUserId = parts[1];
-      const amount = parseInt(parts[2], 10);
-      if (isNaN(amount) || amount <= 0) {
-        return bot.sendMessage(chatId, `⚠️ Cú pháp nạp không hợp lệ! Ví dụ: /nap 6416498175 10000`);
-      }
-      const user = await User.findOneAndUpdate(
-        { userId: targetUserId },
-        { $inc: { balance: amount, total_deposited: amount } },
-        { new: true, upsert: true }
-      );
-      bot.sendMessage(chatId, `✅ Đã nạp +${amount.toLocaleString()}đ cho user ${targetUserId}`);
-      bot.sendMessage(targetUserId, `🎉 Tài khoản được cộng: +${amount.toLocaleString()}đ\n💰 Số dư: ${user.balance.toLocaleString()}đ`).catch(() => {});
-    } else {
-      bot.sendMessage(chatId, `⚠️ Cú pháp: /nap <userId> <số_tiền>`);
+    const parts = text.replace('/nap', '').trim().split(' ');
+    
+    if (parts.length < 2) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap NGUYEN VAN A 50000`);
     }
+
+    const amountStr = parts[parts.length - 1].replace(/[^0-9]/g, '');
+    const amount = parseInt(amountStr, 10);
+    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
+    const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
+
+    if (isNaN(amount) || amount <= 0 || !cleanSearchName) {
+      return bot.sendMessage(chatId, `⚠️ Số tiền hoặc tên không hợp lệ!`);
+    }
+
+    const targetUser = await User.findOne({ 
+      fullName: { $regex: new RegExp(cleanSearchName, 'i') } 
+    });
+
+    if (!targetUser) {
+      return bot.sendMessage(chatId, `❌ Không tìm thấy user nào có tên chứa: "${nameQuery}"`);
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { userId: targetUser.userId },
+      { $inc: { balance: amount, total_deposited: amount } },
+      { new: true }
+    );
+
+    bot.sendMessage(chatId, `✅ Đã nạp thành công +${amount.toLocaleString()}đ cho user: **${targetUser.fullName}** (ID: ${targetUser.userId})\n💰 Số dư mới: ${updatedUser.balance.toLocaleString()}đ`);
+    bot.sendMessage(targetUser.userId, `🎉 Tài khoản được cộng: +${amount.toLocaleString()}đ\n💰 Số dư ví hiện tại: ${updatedUser.balance.toLocaleString()}đ`).catch(() => {});
+    return;
+  }
+
+  // 📌 LỆNH /TRU QUA HỌ VÀ TÊN
+  if (text.startsWith('/tru')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
+    const parts = text.replace('/tru', '').trim().split(' ');
+    
+    if (parts.length < 2) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /tru <Họ Tên> <Số tiền>\n*Ví dụ:* /tru NGUYEN VAN A 20000`);
+    }
+
+    const amountStr = parts[parts.length - 1].replace(/[^0-9]/g, '');
+    const amount = parseInt(amountStr, 10);
+    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
+    const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
+
+    if (isNaN(amount) || amount <= 0 || !cleanSearchName) {
+      return bot.sendMessage(chatId, `⚠️ Số tiền hoặc tên không hợp lệ!`);
+    }
+
+    const targetUser = await User.findOne({ 
+      fullName: { $regex: new RegExp(cleanSearchName, 'i') } 
+    });
+
+    if (!targetUser) {
+      return bot.sendMessage(chatId, `❌ Không tìm thấy user nào có tên chứa: "${nameQuery}"`);
+    }
+
+    const userBalance = targetUser.balance || 0;
+    if (userBalance < amount) {
+      return bot.sendMessage(chatId, `⚠️ Số dư của ${targetUser.fullName} (${userBalance.toLocaleString()}đ) nhỏ hơn số tiền muốn trừ (${amount.toLocaleString()}đ)!`);
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { userId: targetUser.userId },
+      { $inc: { balance: -amount, total_deposited: -amount } },
+      { new: true }
+    );
+
+    bot.sendMessage(chatId, `✅ Đã trừ -${amount.toLocaleString()}đ của user: **${targetUser.fullName}** (ID: ${targetUser.userId})\n💰 Số dư mới: ${updatedUser.balance.toLocaleString()}đ`);
+    bot.sendMessage(targetUser.userId, `💸 Tài khoản bị trừ: -${amount.toLocaleString()}đ\n💳 Số dư ví hiện tại: ${updatedUser.balance.toLocaleString()}đ`).catch(() => {});
     return;
   }
 
@@ -743,64 +816,42 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  if (text.startsWith('/tru')) {
-    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
-    const parts = text.split(' ');
-    if (parts.length >= 3) {
-      const targetUserId = parts[1];
-      const amount = parseInt(parts[2], 10);
-      if (isNaN(amount) || amount <= 0) {
-        return bot.sendMessage(chatId, `⚠️ Cú pháp trừ tiền không hợp lệ! Ví dụ: /tru 6416498175 10000`);
-      }
-
-      const targetUser = await User.findOne({ userId: targetUserId });
-      if (!targetUser) {
-        return bot.sendMessage(chatId, `❌ Không tìm thấy thành viên ID: ${targetUserId}`);
-      }
-
-      const userBalance = targetUser.balance || 0;
-      if (userBalance < amount) {
-        return bot.sendMessage(chatId, `⚠️ Số dư user hiện tại (${userBalance.toLocaleString()}đ) nhỏ hơn số tiền muốn trừ (${amount.toLocaleString()}đ)!`);
-      }
-
-      const updatedUser = await User.findOneAndUpdate(
-        { userId: targetUserId },
-        { $inc: { balance: -amount, total_deposited: -amount } },
-        { new: true }
-      );
-
-      bot.sendMessage(chatId, `✅ Đã trừ -${amount.toLocaleString()}đ của user ${targetUserId}.\n💰 Số dư mới của user: ${updatedUser.balance.toLocaleString()}đ`);
-      bot.sendMessage(targetUserId, `💸 Tài khoản bị trừ: -${amount.toLocaleString()}đ\n💳 Số dư ví hiện tại: ${updatedUser.balance.toLocaleString()}đ`).catch(() => {});
-    } else {
-      bot.sendMessage(chatId, `⚠️ Cú pháp: /tru <userId> <số_tiền>`);
-    }
-    return;
-  }
-
+  // 📌 LỆNH /SETNAP: CỘNG HOẶC TRỪ ĐÚNG SỐ TIỀN VÀO TỔNG NẠP QUA HỌ TÊN
   if (text.startsWith('/setnap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
-    const parts = text.split(' ');
-    if (parts.length >= 3) {
-      const targetUserId = parts[1];
-      const newTotal = parseInt(parts[2], 10);
-      if (isNaN(newTotal) || newTotal < 0) {
-        return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ! Ví dụ: /setnap 5426720868 0`);
-      }
-
-      const updatedUser = await User.findOneAndUpdate(
-        { userId: targetUserId },
-        { $set: { total_deposited: newTotal } },
-        { new: true }
-      );
-
-      if (!updatedUser) {
-        return bot.sendMessage(chatId, `❌ Không tìm thấy user ID ${targetUserId}`);
-      }
-
-      return bot.sendMessage(chatId, `✅ Đã cập nhật chỉ số Tổng Nạp của user ${targetUserId} thành: ${newTotal.toLocaleString()}đ`);
-    } else {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp: /setnap <userId> <số_tiền_mới>`);
+    const parts = text.replace('/setnap', '').trim().split(' ');
+    
+    if (parts.length < 2) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /setnap <Họ Tên> <Số tiền muốn tăng/giảm>\n*Ví dụ:* /setnap Nguyen Van A 20000 (hoặc -10000)`);
     }
+
+    const rawAmountStr = parts[parts.length - 1];
+    const isNegative = rawAmountStr.startsWith('-');
+    const amountVal = parseInt(rawAmountStr.replace(/[^0-9]/g, ''), 10);
+    const amount = isNegative ? -amountVal : amountVal;
+
+    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
+    const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
+
+    if (isNaN(amount) || !cleanSearchName) {
+      return bot.sendMessage(chatId, `⚠️ Số tiền hoặc tên không hợp lệ!`);
+    }
+
+    const targetUser = await User.findOne({ 
+      fullName: { $regex: new RegExp(cleanSearchName, 'i') } 
+    });
+
+    if (!targetUser) {
+      return bot.sendMessage(chatId, `❌ Không tìm thấy user nào có tên chứa: "${nameQuery}"`);
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { userId: targetUser.userId },
+      { $inc: { total_deposited: amount } },
+      { new: true }
+    );
+
+    return bot.sendMessage(chatId, `✅ Đã điều chỉnh tổng nạp của **${targetUser.fullName}** thêm ${amount.toLocaleString()}đ.\n💳 Tổng nạp mới: ${updatedUser.total_deposited.toLocaleString()}đ`);
   }
 
   if (text.startsWith('/')) return;
@@ -883,7 +934,6 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE VỚI BẢNG GIÁ MỚI
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE`, {
       chat_id: chatId, message_id: messageId,
@@ -920,7 +970,6 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // 🚗 MENU GRAP MỚI (TÊN VÀ GIÁ ĐÃ SỬA)
   if (action === 'menu_grab') {
     return bot.editMessageText(`🚗 CHỌN DỊCH VỤ GRAP`, {
       chat_id: chatId, message_id: messageId,
