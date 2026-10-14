@@ -74,7 +74,7 @@ app.post('/webhook/sepay', async (req, res) => {
         msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
-        msgText += `💰 Số tiền nhận: +${finalReceiveAmount.toLocaleString()}đ\n`;
+        msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
       }
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
@@ -121,10 +121,7 @@ const { authenticator } = require('otplib');
 
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://hoantienlach_db_user:hoantienlach@cluster0.lruwdot.mongodb.net/?appName=Cluster0';
 
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ Đã kết nối thành công tới MongoDB Atlas!'))
-  .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err.message));
-
+// 📌 DATABASE MODELS
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   balance: { type: Number, default: 0 },
@@ -155,6 +152,34 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
+const configSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  isMaintenanceMode: { type: Boolean, default: false }
+});
+const Config = mongoose.model('Config', configSchema);
+
+let isMaintenanceMode = false;
+
+async function loadSystemConfig() {
+  try {
+    let conf = await Config.findOne({ key: 'system_settings' });
+    if (!conf) {
+      conf = await Config.create({ key: 'system_settings', isMaintenanceMode: false });
+    }
+    isMaintenanceMode = conf.isMaintenanceMode;
+    console.log(`⚙️ Trạng thái bảo trì từ DB: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`);
+  } catch (err) {
+    console.error('Lỗi load cấu hình hệ thống:', err.message);
+  }
+}
+
+mongoose.connect(MONGO_URI)
+  .then(() => {
+    console.log('✅ Đã kết nối thành công tới MongoDB Atlas!');
+    loadSystemConfig();
+  })
+  .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err.message));
+
 async function getUser(userId) {
   let user = await User.findOne({ userId: userId });
   if (!user) {
@@ -177,8 +202,6 @@ const ADMIN_ID = '5426720868';
 
 const REQUIRED_CHANNEL = '@htlach'; 
 const INVITE_LINK = 'https://t.me/+TDKbQXkqoV5hZmQ1'; 
-
-let isMaintenanceMode = false;
 
 const cooldowns = new Map();
 const COOLDOWN_TIME = 3000;
@@ -208,12 +231,12 @@ async function checkUserMembership(userId) {
   }
 }
 
-// 📌 TỰ ĐỘNG CẬP NHẬT ID DỊCH VỤ NPA THEO DANH SÁCH CỔNG MỚI (PHUOCAN.DEV)
+// 📌 TỰ ĐỘNG CẬP NHẬT MÃ DỊCH VỤ NPA TỪ API
 let npaServiceIds = {
-  shopee_tl: 'shopee_tl',
-  shopee_cam_loc: 'shopee_cam_loc',
-  shopee_call_smooth: 'shopee_call_smooth',
-  shopee_call_stable: 'shopee_call_stable',
+  shopee_tl: 'dyn_86a0db7d3c',
+  shopee_call: 'dyn_d8f753cd7c',
+  shopee_bo: 'dyn_a3a3ad627f',
+  shopee_trau: 'dyn_ab1eb87836',
   grab: 'dyn_227006400d'
 };
 
@@ -223,11 +246,17 @@ async function updateNpaServiceIds() {
     if (res.data && res.data.services && Array.isArray(res.data.services)) {
       res.data.services.forEach(srv => {
         const label = (srv.label || '').toLowerCase();
-        if (label.includes('sóp bi tl') || label.includes('shopee tl')) npaServiceIds.shopee_tl = srv.id;
-        else if (label.includes('cấm lộc') || label.includes('cam loc')) npaServiceIds.shopee_cam_loc = srv.id;
-        else if (label.includes('mượt') || label.includes('muot')) npaServiceIds.shopee_call_smooth = srv.id;
-        else if (label.includes('đá số') || label.includes('da so')) npaServiceIds.shopee_call_stable = srv.id;
-        else if (label.includes('grab')) npaServiceIds.grab = srv.id;
+        if (label.includes('sóp bi tl') || label.includes('shopee tl')) {
+          npaServiceIds.shopee_tl = srv.id;
+        } else if (label.includes('shopee call') || label.includes('cấm lộc')) {
+          npaServiceIds.shopee_call = srv.id;
+        } else if (label.includes('shopee bò') || label.includes('shopee bo') || label.includes('mượt')) {
+          npaServiceIds.shopee_bo = srv.id;
+        } else if (label.includes('shopee trâu') || label.includes('shopee trau') || label.includes('đá số')) {
+          npaServiceIds.shopee_trau = srv.id;
+        } else if (label.includes('grab') || label.includes('grap')) {
+          npaServiceIds.grab = srv.id;
+        }
       });
     }
   } catch (err) {}
@@ -261,13 +290,13 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẬP NHẬT MAPPING CÁC DỊCH VỤ SHOPEE MỚI BÊN NPA
+// 📌 MAPPING DỊCH VỤ VỚI GIÁ TIỀN MỚI
 function getServiceInfo(action) {
   const map = {
-    'rent_npa_shopee_tl': { name: 'Sóp bi TL', price: 4000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
-    'rent_npa_shopee_camloc': { name: 'Shopee Cấm Lộc', price: 2000, service_id: npaServiceIds.shopee_cam_loc, provider: 'npa' },
-    'rent_npa_shopee_smooth': { name: 'Shopee Call+Sms Mượt', price: 3500, service_id: npaServiceIds.shopee_call_smooth, provider: 'npa' },
-    'rent_npa_shopee_stable': { name: 'Shopee Call+Sms Ít Đá Số', price: 3200, service_id: npaServiceIds.shopee_call_stable, provider: 'npa' },
+    'rent_npa_shopee_tl': { name: 'Sóp bi TL', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
+    'rent_npa_shopee_call': { name: 'Shopee Call (Cấm Lộc)', price: 4000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_npa_shopee_bo': { name: 'Shopee Bò (Mượt)', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
+    'rent_npa_shopee_trau': { name: 'Shopee Trâu (Ít đá số)', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
     'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
     
@@ -280,7 +309,7 @@ function getServiceInfo(action) {
     'rent_tt_colombia7': { name: 'TikTok Colombia 7', price: 1200, service_id: '3429', provider: 'gmailotp' },
     'rent_tt_colombia8': { name: 'TikTok Colombia 8', price: 1200, service_id: '3430', provider: 'gmailotp' },
     
-    'rent_npa_grab_v1': { name: 'Grab V1', price: 2500, service_id: npaServiceIds.grab, provider: 'npa' }
+    'rent_npa_grab': { name: 'Grap', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' }
   };
   return map[action];
 }
@@ -323,13 +352,12 @@ async function sendMainMenu(chatId, userId) {
                 `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`;
   }
 
-  // 📌 MENU CHÍNH: ĐÃ XÓA "THUÊ SỐ KHÁC"
   bot.sendMessage(chatId, menuText, {
     reply_markup: {
       inline_keyboard: [
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
         [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
-        [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
+        [{ text: '🚗 Thuê Grap', callback_data: 'menu_grab' }],
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
         [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
         [
@@ -595,9 +623,11 @@ bot.on('message', async (msg) => {
 
     if (status === 'on') {
       isMaintenanceMode = true;
-      return bot.sendMessage(chatId, `🔴 Đã BẬT chế độ bảo trì! Thành viên thường sẽ không sử dụng được bot. Chỉ có Admin được phép thao tác.`);
+      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: true } }, { upsert: true });
+      return bot.sendMessage(chatId, `🔴 Đã BẬT chế độ bảo trì! (Lưu vĩnh viễn trong DB).`);
     } else if (status === 'off') {
       isMaintenanceMode = false;
+      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: false } }, { upsert: true });
       return bot.sendMessage(chatId, `🟢 Đã TẮT chế độ bảo trì! Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
     } else {
       return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
@@ -853,16 +883,16 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU CỔNG SHOPEE MỚI THEO CHUẨN NPA
+  // 🛍️ MENU SHOPEE VỚI BẢNG GIÁ MỚI
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Sóp bi TL - 4.000đ', callback_data: 'rent_npa_shopee_tl' }],
-          [{ text: '🛍️ Shopee Cấm Lộc - 2.000đ', callback_data: 'rent_npa_shopee_camloc' }],
-          [{ text: '🛍️ Shopee Call+Sms Mượt - 3.500đ', callback_data: 'rent_npa_shopee_smooth' }],
-          [{ text: '🛍️ Shopee Call+Sms Ít Đá Số - 3.200đ', callback_data: 'rent_npa_shopee_stable' }],
+          [{ text: '🛍️ Sóp bi TL - 4.500đ', callback_data: 'rent_npa_shopee_tl' }],
+          [{ text: '🛍️ Shopee Call (Cấm Lộc) - 4.000đ', callback_data: 'rent_npa_shopee_call' }],
+          [{ text: '🛍️ Shopee Bò (Mượt) - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
+          [{ text: '🛍️ Shopee Trâu (Ít đá số) - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
           [{ text: '🛍️ Shopee 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
           [{ text: '🛍️ Shopee 6 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
@@ -890,12 +920,13 @@ bot.on('callback_query', async (query) => {
     });
   }
 
+  // 🚗 MENU GRAP MỚI (TÊN VÀ GIÁ ĐÃ SỬA)
   if (action === 'menu_grab') {
-    return bot.editMessageText(`🚗 CHỌN DỊCH VỤ GRAB`, {
+    return bot.editMessageText(`🚗 CHỌN DỊCH VỤ GRAP`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🚗 Grab V1 - 2.500đ', callback_data: 'rent_npa_grab_v1' }],
+          [{ text: '🚗 Grap - 3.000đ', callback_data: 'rent_npa_grab' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
