@@ -314,8 +314,6 @@ function getServiceInfo(action) {
     'rent_npa_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_npa_shopee_bo': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
-    'rent_shopee_vn5': { name: 'Shopee 5', price: 5000, service_id: '15461', provider: 'gmailotp' },
-    'rent_shopee_vn8': { name: 'Shopee 6', price: 5000, service_id: '24901', provider: 'gmailotp' },
     
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
@@ -943,8 +941,9 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
+  // 🛍️ MENU SHOPEE ĐÃ ĐƯỢC CẬP NHẬT TIÊU ĐỀ VÀ BỎ SHOPEE 5, 6
   if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE`, {
+    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
@@ -952,14 +951,12 @@ bot.on('callback_query', async (query) => {
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_npa_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
-          [{ text: '🛍️ Shopee 5 - 5.000đ', callback_data: 'rent_shopee_vn5' }],
-          [{ text: '🛍️ Shopee 6 - 5.000đ', callback_data: 'rent_shopee_vn8' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
     });
   }
-https://github.com/hoantienlach/bot-telegram/tree/main
+
   if (action === 'menu_tiktok') {
     return bot.editMessageText(`🎵 CHỌN MÃ VÙNG TIKTOK`, {
       chat_id: chatId, message_id: messageId,
@@ -1095,7 +1092,6 @@ https://github.com/hoantienlach/bot-telegram/tree/main
 
       let isCompleted = false;
       
-      // 📌 SỬA LỖI TRÙNG LẶP OTP: Đặt cờ kiểm tra ngắt vòng lặp ngay khi có kết quả
       const checkInterval = setInterval(async () => {
         if (isCompleted) return;
         try {
@@ -1136,7 +1132,6 @@ https://github.com/hoantienlach/bot-telegram/tree/main
           }
 
           if (otpCode && !isCompleted) {
-            // Ngắt vòng lặp ngay lập tức trước khi thực hiện các tác vụ bất đồng bộ
             isCompleted = true;
             clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
