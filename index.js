@@ -1132,10 +1132,18 @@ bot.on('callback_query', async (query) => {
         const phoneObj = resData.data || resData.Result || {};
         const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
         
-        // 🎯 Lấy chính xác trường reference dạng số chuẩn từ Botmmo
+        // 🎯 Trích xuất Request ID đa tầng từ mọi ngóc ngách phản hồi
         let foundReqId = 'N/A';
-        if (phoneObj?.reference) {
-          foundReqId = phoneObj.reference.toString();
+        if (phoneObj?.request_id) {
+          foundReqId = phoneObj.request_id;
+        } else if (phoneObj?.id) {
+          foundReqId = phoneObj.id;
+        } else if (phoneObj?.reference) {
+          foundReqId = phoneObj.reference;
+        } else if (resData?.request_id) {
+          foundReqId = resData.request_id;
+        } else if (resData?.id) {
+          foundReqId = resData.id;
         } else if (resData?.url && resData.url.includes('requestId=')) {
           const match = resData.url.match(/requestId=([^&]+)/);
           if (match && match[1]) {
