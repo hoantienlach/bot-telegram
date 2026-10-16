@@ -1,4 +1,4 @@
-=const express = require('express');
+const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -215,7 +215,7 @@ bot.getMe().then(me => {
   if (me && me.username) botUsername = me.username;
 });
 
-// 📌 THÔNG TIN TẤT CẢ CÁC API WEB
+// 📌 API KEYS
 const KEY_SERVER = '3ff5aed2e57cd639dc23131d4698683cc370eeff76db0180ce58609c95b25485';
 const API_KEY_VIOTP = '41f6cd3efde9492c94be344dd0f1e81c';
 const API_KEY_CHAYCODESO3 = '2b06086cc0d4e0e3';
@@ -314,16 +314,16 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 PHÂN CHIA ĐẦY ĐỦ CÁC CỔNG API (Shopee qua NPA/Botmmo, TikTok qua GmailOTP, Grab qua NPA)
+// 📌 CẤU HÌNH CÁC CỔNG THUÊ (4 Shopee qua NPA + TikTok qua GmailOTP + 2 cổng mới qua Botmmo)
 function getServiceInfo(action) {
   const map = {
-    // 4 nút Shopee (qua cổng NPA)
+    // 4 cổng Shopee gốc qua NPA
     'rent_shopee': { name: 'Shopee', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
     'rent_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // TikTok (qua cổng GmailOTP)
+    // TikTok (qua GmailOTP)
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
     'rent_tt_indo19': { name: 'TikTok Indonesia +62', price: 1200, service_id: '19173', provider: 'gmailotp' },
@@ -333,8 +333,14 @@ function getServiceInfo(action) {
     'rent_tt_colombia7': { name: 'TikTok Colombia +57', price: 1200, service_id: '3429', provider: 'gmailotp' },
     'rent_tt_colombia8': { name: 'TikTok Colombia +57', price: 1200, service_id: '3430', provider: 'gmailotp' },
     
-    // Grab (qua cổng NPA)
-    'rent_grab': { name: 'Grab', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' }
+    // Grab qua NPA
+    'rent_grab': { name: 'Grab', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' },
+
+    // 👉 2 CỔNG THUÊ MỚI TÍCH HỢP QUA BOTMMO
+    // Cổng 1: Thuê qua viotp.com
+    'rent_new_viotp': { name: 'Dịch vụ Mới (Viotp)', price: 3000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
+    // Cổng 2: Thuê qua chaycodeso3.com
+    'rent_new_chaycode': { name: 'Dịch vụ Mới (Chaycode)', price: 3000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' }
   };
   return map[action];
 }
@@ -383,6 +389,7 @@ async function sendMainMenu(chatId, userId) {
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
         [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
         [{ text: '🚗 Thuê Grab', callback_data: 'menu_grab' }],
+        [{ text: '⭐ Dịch vụ Mới (Botmmo)', callback_data: 'menu_new_botmmo' }], // Thêm menu cho 2 cổng mới
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
         [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
         [
@@ -947,7 +954,7 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE ĐỦ 4 CỔNG
+  // 🛍️ MENU SHOPEE ĐỦ 4 CỔNG GỐC QUA NPA
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
@@ -988,6 +995,20 @@ bot.on('callback_query', async (query) => {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🚗 Grab - 3.000đ', callback_data: 'rent_grab' }],
+          [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
+  // 🌟 MENU 2 CỔNG MỚI THUÊ QUA BOTMMO (ViOTP & Chaycodeso3)
+  if (action === 'menu_new_botmmo') {
+    return bot.editMessageText(`⭐ CHỌN DỊCH VỤ MỚI (QUA BOTMMO)`, {
+      chat_id: chatId, message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🌐 Dịch vụ Mới (Viotp) - 3.000đ', callback_data: 'rent_new_viotp' }],
+          [{ text: '🌐 Dịch vụ Mới (Chaycode) - 3.000đ', callback_data: 'rent_new_chaycode' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
@@ -1035,8 +1056,6 @@ bot.on('callback_query', async (query) => {
         const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY_GMAILOTP}&id=${serviceId}`);
         const resData = apiResponse.data;
         
-        console.log(`🔍 Phản hồi GmailOTP cho dịch vụ ${serviceId}:`, resData);
-
         const phoneNumber = resData ? (resData.number || resData.phone || resData.phoneNumber || resData.msg) : null;
         const requestId = resData ? (resData.request_id || resData.id || resData.requestId) : null;
 
@@ -1061,8 +1080,6 @@ bot.on('callback_query', async (query) => {
         });
         const resData = apiResponse.data;
 
-        console.log(`🔍 Phản hồi NPA cho dịch vụ ${serviceId}:`, resData);
-
         if (resData && resData.ResponseCode === 0 && resData.Result) {
           rawPhone = resData.Result.Number || '';
           reqId = resData.Result.Id || 'N/A';
@@ -1074,6 +1091,33 @@ bot.on('callback_query', async (query) => {
           if (isAdmin) {
             const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - NPA]\n- Dịch vụ: ${countryLabel} (Server: ${serviceId})\n- Phản hồi: ${errorDetail}`);
+          }
+
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
+        }
+      } else if (provider === 'botmmo') {
+        const site = serviceInfo.site;
+        const apiKey = serviceInfo.apikey;
+
+        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
+        
+        const apiResponse = await axios.get(rentUrl, {
+          headers: { 'APIKEY': KEY_SERVER }
+        });
+        
+        const resData = apiResponse.data;
+
+        if (resData && resData.status === true && resData.data) {
+          rawPhone = resData.data.phone_number || '';
+          reqId = resData.data.request_id || 'N/A';
+        } else {
+          if (!isAdmin) {
+            await User.updateOne({ userId: userId }, { $inc: { balance: price } });
+          }
+
+          if (isAdmin) {
+            const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
+            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
@@ -1134,6 +1178,18 @@ bot.on('callback_query', async (query) => {
                 otpCode = otpRes.data.code;
               } else if (otpRes.data.sms && typeof otpRes.data.sms === 'string') {
                 otpCode = otpRes.data.sms;
+              }
+            }
+          } else if (provider === 'botmmo') {
+            const checkOtpUrl = `https://botmmo.xyz/api/check_code.php?requestId=${reqId}`;
+            const otpRes = await axios.get(checkOtpUrl);
+
+            if (otpRes.data) {
+              if (otpRes.data.status === 'done' && otpRes.data.code) {
+                otpCode = otpRes.data.code;
+              } else if (otpRes.data.status === 'timeout') {
+                isCompleted = true;
+                clearInterval(checkInterval);
               }
             }
           }
