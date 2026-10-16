@@ -1094,13 +1094,10 @@ bot.on('callback_query', async (query) => {
         console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}):`, resData);
 
         const phoneObj = resData.data || resData.Result;
-        
-        // Kiểm tra điều kiện: chỉ nhận số khi kết quả quét trả về ket_qua là true hoặc có status true (số new hợp lệ)
-        const isSuccessNumber = phoneObj && (phoneObj.ket_qua === true || resData.status === true || resData.success === true);
         const foundPhone = phoneObj?.phone_number || phoneObj?.sdt || phoneObj?.number || '';
         const foundReqId = phoneObj?.request_id || phoneObj?.reference || phoneObj?.id || 'N/A';
 
-        if (isSuccessNumber && foundPhone && foundPhone.length > 5) {
+        if (foundPhone && foundPhone.length > 5) {
           rawPhone = foundPhone;
           reqId = foundReqId;
         } else {
@@ -1113,7 +1110,7 @@ bot.on('callback_query', async (query) => {
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Hệ thống đã quét nhưng chưa tìm được số mới (Shopee chưa đăng ký), vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số hoặc chưa lọc được số mới, vui lòng thử lại sau!`);
         }
       }
 
