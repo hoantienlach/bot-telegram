@@ -223,7 +223,6 @@ bot.getMe().then(me => {
 // 📌 API KEYS
 const KEY_SERVER = '3ff5aed2e57cd639dc23131d4698683cc370eeff76db0180ce58609c95b25485';
 const API_KEY_VIOTP = '41f6cd3efde9492c94be344dd0f1e81c';
-const API_KEY_CHAYCODESO3 = '2b06086cc0d4e0e3';
 const API_KEY_GMAILOTP = '6565dd2cdb5945cea58563c10af9ca6e';
 const API_KEY_NPA = 'cmsnpa_2PW1uwK_Pw8wGjIcztt7lMPP336E0l4veVsM7rVvMRU';
 const ADMIN_ID = '5426720868'; 
@@ -321,7 +320,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (CHỈ SỐ MỚI mode=4)
+// 📌 CẤU HÌNH DỊCH VỤ (Đã xóa Shopee HC, giữ lại Shopee HV)
 function getServiceInfo(action) {
   const map = {
     'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
@@ -330,7 +329,6 @@ function getServiceInfo(action) {
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
     'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '4' },
-    'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '4' },
 
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
@@ -987,7 +985,7 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE CHỈ SỐ MỚI
+  // 🛍️ MENU SHOPEE (Đã xóa Shopee HC)
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE\n👉 Vui lòng chọn loại dịch vụ (Số mới):`, {
       chat_id: chatId, message_id: messageId,
@@ -995,7 +993,6 @@ bot.on('callback_query', async (query) => {
         inline_keyboard: [
           [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_shopee' }],
           [{ text: '✨ Shopee HV (Số mới) - 5.000đ', callback_data: 'rent_shopee_viotp_moi' }],
-          [{ text: '✨ Shopee HC (Số mới) - 5.000đ', callback_data: 'rent_shopee_chaycode_moi' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
@@ -1125,47 +1122,29 @@ bot.on('callback_query', async (query) => {
 
         const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
-        let successRent = false;
-        let resData = null;
-        let phoneObj = {};
-        let foundPhone = '';
+        const apiResponse = await axios.get(rentUrl, {
+          headers: { 'APIKEY': KEY_SERVER }
+        });
+        
+        const resData = apiResponse.data;
+        console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
+
+        const phoneObj = resData.data || resData.Result || {};
+        const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
+        
+        // Lấy requestId từ URL trả về hoặc trường reference
         let foundReqId = 'N/A';
-
-        // 🔄 Vòng lặp quét tối đa 15 lần, CHỈ NHẬN số sạch tuyệt đối và mã đơn dạng số chuẩn
-        for (let attempt = 1; attempt <= 15; attempt++) {
-          try {
-            const apiResponse = await axios.get(rentUrl, {
-              headers: { 'APIKEY': KEY_SERVER },
-              timeout: 5000
-            });
-            
-            resData = apiResponse.data;
-            phoneObj = resData.data || resData.Result || {};
-            foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
-            
-            // Điều kiện nhận: Phải là số sạch (chưa đăng ký Shopee)
-            const isCleanNumber = phoneObj?.ket_qua === true || (resData.status === true && phoneObj?.msg && !phoneObj.msg.includes('đã đăng ký'));
-
-            // Lấy Request ID chuẩn dạng số từ URL hoặc reference
-            let tempReqId = 'N/A';
-            if (resData?.url && resData.url.includes('requestId=')) {
-              const match = resData.url.match(/requestId=([^&]+)/);
-              if (match && match[1]) tempReqId = match[1];
-            }
-            if (tempReqId === 'N/A' && phoneObj?.reference && !isNaN(phoneObj.reference)) {
-              tempReqId = phoneObj.reference.toString();
-            }
-
-            if (foundPhone && foundPhone.length > 5 && isCleanNumber && tempReqId !== 'N/A') {
-              foundReqId = tempReqId;
-              successRent = true;
-              break;
-            }
-          } catch (e) {}
-          await new Promise(resolve => setTimeout(resolve, 300));
+        if (resData?.url && resData.url.includes('requestId=')) {
+          const match = resData.url.match(/requestId=([^&]+)/);
+          if (match && match[1]) {
+            foundReqId = match[1];
+          }
+        }
+        if (foundReqId === 'N/A' && phoneObj?.reference) {
+          foundReqId = phoneObj.reference;
         }
 
-        if (successRent && foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
+        if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
           rawPhone = foundPhone;
           reqId = foundReqId.toString();
         } else {
@@ -1175,10 +1154,10 @@ bot.on('callback_query', async (query) => {
 
           if (isAdmin) {
             const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
-            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Quét 15 lần không tìm được số sạch hợp lệ.\n- Phản hồi cuối: ${errorDetail}`);
+            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Kho số mới của ${countryLabel} hiện tại đang hết số sạch, vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
         }
       }
 
