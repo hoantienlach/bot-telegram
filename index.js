@@ -319,7 +319,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (PHÂN TÁCH RÕ SỐ MỚI VÀ ĐÁ SỐ CHO BOTMMO)
+// 📌 CẤU HÌNH DỊCH VỤ (PHÂN TÁCH MỚI mode=4 VÀ ĐÁ SỐ mode=2)
 function getServiceInfo(action) {
   const map = {
     'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
@@ -327,11 +327,13 @@ function getServiceInfo(action) {
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // Shopee HV & HC phân tách rõ loại Số mới / Đá số
-    'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
-    'rent_shopee_viotp_daso': { name: 'Shopee HV (Đá số)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
-    'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
-    'rent_shopee_chaycode_daso': { name: 'Shopee HC (Đá số)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
+    // Shopee HV & HC - Số mới (mode=4)
+    'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '4' },
+    'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '4' },
+
+    // Shopee HV & HC - Đá số (mode=2)
+    'rent_shopee_viotp_daso': { name: 'Shopee HV (Đá số)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '2' },
+    'rent_shopee_chaycode_daso': { name: 'Shopee HC (Đá số)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '2' },
 
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
@@ -1122,15 +1124,16 @@ bot.on('callback_query', async (query) => {
       } else if (provider === 'botmmo') {
         const site = serviceInfo.site;
         const apiKey = serviceInfo.apikey;
+        const rentMode = serviceInfo.mode || '4'; // Nhận mode động (4 cho số mới, 2 cho đá số)
 
-        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
+        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
         const apiResponse = await axios.get(rentUrl, {
           headers: { 'APIKEY': KEY_SERVER }
         });
         
         const resData = apiResponse.data;
-        console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}):`, resData);
+        console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
 
         const phoneObj = resData.data || resData.Result;
         const foundPhone = phoneObj?.phone_number || phoneObj?.sdt || phoneObj?.number || '';
@@ -1149,7 +1152,7 @@ bot.on('callback_query', async (query) => {
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số theo tiêu chí này, vui lòng thử lại sau!`);
         }
       }
 
