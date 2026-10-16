@@ -314,18 +314,18 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ
+// 📌 CẤU HÌNH DỊCH VỤ (ĐÃ ẨN TÊN NGUỒN NPA/BOTMMO/VIOTP)
 function getServiceInfo(action) {
   const map = {
     // 4 cổng Shopee NPA
-    'rent_shopee': { name: 'Shopee (NPA)', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
-    'rent_shopee_call': { name: 'Shopee Call (NPA)', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
-    'rent_shopee_muot': { name: 'Shopee Mượt (NPA)', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
-    'rent_shopee_trau': { name: 'Shopee Ít đá số (NPA)', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
+    'rent_shopee': { name: 'Shopee HL', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
+    'rent_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
+    'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
+    'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // 2 cổng Shopee Botmmo (Viotp & Chaycode)
-    'rent_shopee_viotp': { name: 'Shopee Viotp (Botmmo)', price: 4000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
-    'rent_shopee_chaycode': { name: 'Shopee Chaycode (Botmmo)', price: 4000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
+    // 2 cổng Shopee Botmmo (Đã ẩn tên nguồn)
+    'rent_shopee_viotp': { name: 'Shopee HV', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
+    'rent_shopee_chaycode': { name: 'Shopee HC', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
 
     // TikTok (qua GmailOTP)
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
@@ -951,18 +951,18 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE GỒM 4 CỔNG NPA & 2 CỔNG BOTMMO
+  // 🛍️ MENU SHOPEE ĐÃ ẨN NGUỒN ĐỐI TÁC
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee - 4.500đ', callback_data: 'rent_shopee' }],
+          [{ text: '🛍️ Shopee HN - 5000', callback_data: 'rent_shopee' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
-          [{ text: '🌐 Shopee Viotp (Botmmo) - 4.000đ', callback_data: 'rent_shopee_viotp' }],
-          [{ text: '🌐 Shopee Chaycode (Botmmo) - 4.000đ', callback_data: 'rent_shopee_chaycode' }],
+          [{ text: '🛍️ Shopee HV - 5000', callback_data: 'rent_shopee_viotp' }],
+          [{ text: '🛍️ Shopee HC - 5000', callback_data: 'rent_shopee_chaycode' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
@@ -1122,7 +1122,7 @@ bot.on('callback_query', async (query) => {
 
       await bot.sendMessage(
         chatId,
-        `✅ THUÊ SỐ THÀNH CÔNG (SỐ NEW)!\n\n` +
+        `✅ THUÊ SỐ THÀNH CÔNG!\n\n` +
         `🌐 Dịch vụ: ${countryLabel}\n` +
         `📞 Số điện thoại: ${rawPhone}\n` +
         `🆔 Mã đơn: ${reqId}\n` +
