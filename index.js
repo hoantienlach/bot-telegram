@@ -990,12 +990,27 @@ bot.on('callback_query', async (query) => {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_shopee' }],
-          [{ text: '🛍️ Shopee HV - 5.000đ', callback_data: 'rent_shopee_viotp' }],
-          [{ text: '🛍️ Shopee HC - 5.000đ', callback_data: 'rent_shopee_chaycode' }],
+          [{ text: '🛍️ Shopee HV - 5.000đ', callback_data: 'select_opt_viotp' }],
+          [{ text: '🛍️ Shopee HC - 5.000đ', callback_data: 'select_opt_chaycode' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  }
+
+  // ⚙️ MENU CHỌN LOẠI SỐ (CHỈ CÒN SỐ MỚI VÀ ĐÁ SỐ)
+  if (action === 'select_opt_viotp' || action === 'select_opt_chaycode') {
+    const baseAction = action === 'select_opt_viotp' ? 'rent_shopee_viotp' : 'rent_shopee_chaycode';
+    return bot.editMessageText(`⚙️ CHỌN LOẠI SỐ (THUÊ SHOPEE)\n\n👉 Vui lòng chọn tiêu chí lọc số trước khi hệ thống check:`, {
+      chat_id: chatId, message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✨ Số mới', callback_data: `${baseAction}_opt_1` }],
+          [{ text: '⚡ Đá số', callback_data: `${baseAction}_opt_3` }],
+          [{ text: '⬅️ Quay lại Shopee', callback_data: 'menu_shopee' }]
         ]
       }
     });
@@ -1043,7 +1058,16 @@ bot.on('callback_query', async (query) => {
       return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
     }
 
-    const serviceInfo = getServiceInfo(action);
+    let realAction = action;
+    let selectedOption = '1'; // Mặc định số mới
+
+    if (action.includes('_opt_')) {
+      const parts = action.split('_opt_');
+      realAction = parts[0]; 
+      selectedOption = parts[1]; // 1: Số mới, 3: Đá số
+    }
+
+    const serviceInfo = getServiceInfo(realAction);
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
@@ -1116,7 +1140,7 @@ bot.on('callback_query', async (query) => {
         const site = serviceInfo.site;
         const apiKey = serviceInfo.apikey;
 
-        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
+        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&option=${selectedOption}&hostname=https://botmmo.xyz`;
         
         const apiResponse = await axios.get(rentUrl, {
           headers: { 'APIKEY': KEY_SERVER }
@@ -1204,12 +1228,15 @@ bot.on('callback_query', async (query) => {
             }
           } else if (provider === 'botmmo') {
             const checkOtpUrl = `https://botmmo.xyz/api/check_code.php?requestId=${reqId}`;
-            const otpRes = await axios.get(checkOtpUrl);
+            const otpRes = await axios.get(checkOtpUrl, {
+              headers: { 'APIKEY': KEY_SERVER },
+              timeout: 5000
+            });
 
             if (otpRes.data) {
-              if (otpRes.data.status === 'done' && otpRes.data.code) {
+              if ((otpRes.data.status === 'done' || otpRes.data.code) && otpRes.data.code) {
                 otpCode = otpRes.data.code;
-              } else if (otpRes.data.status === 'timeout') {
+              } else if (otpRes.data.status === 'timeout' || otpRes.data.msg?.includes('timeout')) {
                 isCompleted = true;
                 clearInterval(checkInterval);
               }
