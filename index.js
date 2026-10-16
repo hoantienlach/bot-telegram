@@ -173,19 +173,22 @@ const Order = mongoose.model('Order', orderSchema);
 
 const configSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
-  isMaintenanceMode: { type: Boolean, default: false }
+  isMaintenanceMode: { type: Boolean, default: false },
+  allowedUsers: { type: [String], default: [] } // Danh sách ID user được phép dùng khi bảo trì
 });
 const Config = mongoose.model('Config', configSchema);
 
 let isMaintenanceMode = false;
+let allowedMaintenanceUsers = [];
 
 async function loadSystemConfig() {
   try {
     let conf = await Config.findOne({ key: 'system_settings' });
     if (!conf) {
-      conf = await Config.create({ key: 'system_settings', isMaintenanceMode: false });
+      conf = await Config.create({ key: 'system_settings', isMaintenanceMode: false, allowedUsers: [] });
     }
     isMaintenanceMode = conf.isMaintenanceMode;
+    allowedMaintenanceUsers = conf.allowedUsers || [];
     console.log(`⚙️ Trạng thái bảo trì từ DB: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`);
   } catch (err) {
     console.error('Lỗi load cấu hình hệ thống:', err.message);
@@ -304,6 +307,8 @@ async function setupBotCommands() {
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
+      { command: 'baotri_cho', description: 'Admin: Thêm ID user được dùng khi bảo trì' },
+      { command: 'baotri_xoa', description: 'Admin: Xóa ID user khỏi danh sách bảo trì' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
       scope: { type: 'chat', chat_id: ADMIN_ID }
@@ -378,7 +383,8 @@ async function sendMainMenu(chatId, userId) {
                 `💰 Tổng số dư hiện tại trong ví: ${totalBalanceAll.toLocaleString()}đ\n` +
                 `🎁 Mức khuyến mãi nạp: ${depositBonusPercent}%\n` +
                 `🤝 Hoa hồng giới thiệu: ${referralCommissionPercent}%\n` +
-                `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`;
+                `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n` +
+                `👥 Danh sách ngoại lệ bảo trì: ${allowedMaintenanceUsers.length > 0 ? allowedMaintenanceUsers.join(', ') : 'Trống'}`;
   }
 
   bot.sendMessage(chatId, menuText, {
@@ -544,7 +550,8 @@ bot.on('message', async (msg) => {
     );
   }
 
-  if (isMaintenanceMode && userId !== ADMIN_ID) {
+  // 🛠️ KIỂM TRA BẢO TRÌ (BỎ QUA CHO ADMIN VÀ CÁC USER ĐƯỢC CHỈ ĐỊNH)
+  if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.sendMessage(chatId, `🛠️ HỆ THỐNG ĐANG BẢO TRÌ\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`);
   }
 
@@ -661,6 +668,40 @@ bot.on('message', async (msg) => {
     } else {
       return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
     }
+  }
+
+  // 🛠️ THÊM LỆNH CHO PHÉP USER DÙNG KHI BẢO TRÌ QUA ID
+  if (text.startsWith('/baotri_cho')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const targetUserId = parts[1] ? parts[1].trim() : '';
+
+    if (!targetUserId) {
+      return bot.sendMessage(chatId, `⚠️ Vui lòng nhập ID user.\n*Ví dụ:* /baotri_cho 123456789`);
+    }
+
+    if (!allowedMaintenanceUsers.includes(targetUserId)) {
+      allowedMaintenanceUsers.push(targetUserId);
+      await Config.updateOne({ key: 'system_settings' }, { $set: { allowedUsers: allowedMaintenanceUsers } }, { upsert: true });
+    }
+
+    return bot.sendMessage(chatId, `✅ Đã cấp quyền cho User ID: \`${targetUserId}\` được phép tiếp tục sử dụng bot trong thời gian bảo trì.`);
+  }
+
+  // 🛠️ THÊM LỆNH XÓA USER KHỎI DANH SÁCH BẢO TRÌ QUA ID
+  if (text.startsWith('/baotri_xoa')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const targetUserId = parts[1] ? parts[1].trim() : '';
+
+    if (!targetUserId) {
+      return bot.sendMessage(chatId, `⚠️ Vui lòng nhập ID user cần xóa.\n*Ví dụ:* /baotri_xoa 123456789`);
+    }
+
+    allowedMaintenanceUsers = allowedMaintenanceUsers.filter(id => id !== targetUserId);
+    await Config.updateOne({ key: 'system_settings' }, { $set: { allowedUsers: allowedMaintenanceUsers } }, { upsert: true });
+
+    return bot.sendMessage(chatId, `✅ Đã thu hồi quyền truy cập của User ID: \`${targetUserId}\` khi bot bảo trì.`);
   }
 
   if (text.startsWith('/sendall')) {
@@ -900,7 +941,8 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  if (isMaintenanceMode && userId !== ADMIN_ID) {
+  // 🛠️ KIỂM TRA BẢO TRÌ CHO CALLBACK (BỎ QUA CHO ADMIN VÀ USER ĐƯỢC CHỈ ĐỊNH)
+  if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
   }
 
