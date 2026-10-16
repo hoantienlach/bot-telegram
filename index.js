@@ -314,7 +314,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH CÁC CỔNG THUÊ SHOPEE TÍCH HỢP ĐỦ TRONG MENU
+// 📌 CẤU HÌNH DỊCH VỤ SHOPEE
 function getServiceInfo(action) {
   const map = {
     // 4 cổng Shopee NPA
@@ -323,7 +323,7 @@ function getServiceInfo(action) {
     'rent_shopee_muot': { name: 'Shopee Mượt (NPA)', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số (NPA)', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // 2 cổng Shopee mới tích hợp qua Botmmo
+    // 2 cổng Shopee Botmmo tích hợp chế độ check số mới (mode=4, check 15 số, dừng khi lấy 1)
     'rent_shopee_viotp': { name: 'Shopee Viotp (Botmmo)', price: 4000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
     'rent_shopee_chaycode': { name: 'Shopee Chaycode (Botmmo)', price: 4000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
 
@@ -951,7 +951,7 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE BAO GỒM CẢ 4 CỔNG NPA VÀ 2 CỔNG BOTMMO
+  // 🛍️ MENU SHOPEE BAO GỒM 4 CỔNG NPA VÀ 2 CỔNG BOTMMO
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
@@ -1084,17 +1084,21 @@ bot.on('callback_query', async (query) => {
         const site = serviceInfo.site;
         const apiKey = serviceInfo.apikey;
 
-        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
+        // 📌 Cập nhật URL check số mới: mode=4 kèm theo các tham số kiểm tra 15 số và dừng khi lấy được 1 số
+        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&max_check=15&stop_when_get=1&hostname=https://botmmo.xyz`;
         
         const apiResponse = await axios.get(rentUrl, {
           headers: { 'APIKEY': KEY_SERVER }
         });
         
         const resData = apiResponse.data;
+        console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}):`, resData);
 
-        if (resData && resData.status === true && resData.data) {
-          rawPhone = resData.data.phone_number || '';
-          reqId = resData.data.request_id || 'N/A';
+        // Hỗ trợ đọc kết quả trả về từ API check số mới của Botmmo
+        if (resData && (resData.status === true || resData.success === true)) {
+          const phoneObj = resData.data || resData.Result;
+          rawPhone = phoneObj?.phone_number || phoneObj?.sdt || phoneObj?.number || '';
+          reqId = phoneObj?.request_id || phoneObj?.reference || phoneObj?.id || 'N/A';
         } else {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
@@ -1105,7 +1109,7 @@ bot.on('callback_query', async (query) => {
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số hoặc chưa lọc được số mới, vui lòng thử lại sau!`);
         }
       }
 
