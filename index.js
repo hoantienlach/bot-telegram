@@ -1121,7 +1121,7 @@ bot.on('callback_query', async (query) => {
       } else if (provider === 'botmmo') {
         site = serviceInfo.site;
         apiKey = serviceInfo.apikey;
-        const rentMode = serviceInfo.mode || '4'; // Luôn là mode=4 (Số mới)
+        const rentMode = serviceInfo.mode || '4';
 
         const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
@@ -1133,11 +1133,9 @@ bot.on('callback_query', async (query) => {
         console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
 
         const phoneObj = resData.data || resData.Result || {};
-        
-        // 🎯 Đọc số từ trường sdt hoặc phone_number/number
         const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
         
-        // 🎯 Lấy requestId chính xác từ URL trả về của Botmmo
+        // 🎯 Lấy chính xác requestId từ trường url (ví dụ: ?requestId=464168350) do Botmmo cung cấp
         let foundReqId = 'N/A';
         if (resData?.url && resData.url.includes('requestId=')) {
           const match = resData.url.match(/requestId=([^&]+)/);
@@ -1145,8 +1143,10 @@ bot.on('callback_query', async (query) => {
             foundReqId = match[1];
           }
         }
-        if (foundReqId === 'N/A' && phoneObj?.reference) {
-          foundReqId = phoneObj.reference;
+        
+        // Fallback nếu url không có thì lấy trực tiếp request_id từ phoneObj
+        if (foundReqId === 'N/A' && phoneObj?.request_id) {
+          foundReqId = phoneObj.request_id;
         }
 
         if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
@@ -1259,7 +1259,7 @@ bot.on('callback_query', async (query) => {
 
           if (otpCode && !isCompleted) {
             isCompleted = true;
-            clearInterval(checkInterval);
+            clearInterval(check_interval = true);
             clearTimeout(timeoutRefund);
             
             if (reqId && reqId !== 'N/A') {
