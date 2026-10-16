@@ -1220,9 +1220,26 @@ bot.on('callback_query', async (query) => {
             });
 
             if (otpRes.data) {
-              if ((otpRes.data.status === 'done' || otpRes.data.code) && otpRes.data.code) {
-                otpCode = otpRes.data.code;
-              } else if (otpRes.data.status === 'timeout' || otpRes.data.msg?.includes('timeout')) {
+              const resData = otpRes.data;
+              let foundCode = resData.code || resData.otp || resData.sms || resData.msg;
+
+              if (!foundCode && resData.content) {
+                try {
+                  const parsedContent = typeof resData.content === 'string' ? JSON.parse(resData.content) : resData.content;
+                  foundCode = parsedContent.code || parsedContent.otp || parsedContent.sms;
+                } catch (e) {}
+              }
+
+              if (foundCode && typeof foundCode === 'string') {
+                const cleanCode = foundCode.trim().toLowerCase();
+                if (!['is_coming', 'too_fast', 'wait', 'pending', 'none', 'timeout'].includes(cleanCode) && cleanCode.length <= 10) {
+                  otpCode = foundCode;
+                }
+              }
+
+              if (resData.status === 'done' && resData.code) {
+                otpCode = resData.code;
+              } else if (resData.status === 'timeout' || resData.msg?.includes('timeout')) {
                 isCompleted = true;
                 clearInterval(checkInterval);
               }
