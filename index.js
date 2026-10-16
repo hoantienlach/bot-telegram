@@ -981,7 +981,7 @@ bot.on('callback_query', async (query) => {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee - 5.000đ', callback_data: 'rent_npa_shopee_tl' }],
-          [{ text: '🛍️ Shopee Call - 3.00đ', callback_data: 'rent_npa_shopee_call' }],
+          [{ text: '🛍️ Shopee Call - 3.000đ', callback_data: 'rent_npa_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
