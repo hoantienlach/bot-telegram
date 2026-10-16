@@ -1132,22 +1132,24 @@ bot.on('callback_query', async (query) => {
         const phoneObj = resData.data || resData.Result || {};
         const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
         
-        // 🎯 Trích xuất Request ID đa tầng từ mọi ngóc ngách phản hồi
+        // 🎯 Lọc nghiêm ngặt: Bắt buộc chỉ nhận chuỗi toàn số thuần túy làm Request ID
         let foundReqId = 'N/A';
-        if (phoneObj?.request_id) {
-          foundReqId = phoneObj.request_id;
-        } else if (phoneObj?.id) {
-          foundReqId = phoneObj.id;
-        } else if (phoneObj?.reference) {
-          foundReqId = phoneObj.reference;
-        } else if (resData?.request_id) {
-          foundReqId = resData.request_id;
-        } else if (resData?.id) {
-          foundReqId = resData.id;
-        } else if (resData?.url && resData.url.includes('requestId=')) {
-          const match = resData.url.match(/requestId=([^&]+)/);
-          if (match && match[1]) {
-            foundReqId = match[1];
+        const possibleIds = [
+          phoneObj?.reference,
+          phoneObj?.request_id,
+          phoneObj?.id,
+          resData?.request_id,
+          resData?.id,
+          resData?.url?.match(/requestId=([^&]+)/)?.[1]
+        ];
+
+        for (const idVal of possibleIds) {
+          if (idVal) {
+            const cleanStr = idVal.toString().trim();
+            if (/^\d+$/.test(cleanStr)) {
+              foundReqId = cleanStr;
+              break;
+            }
           }
         }
 
