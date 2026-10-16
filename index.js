@@ -314,7 +314,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (ĐÃ ẨN TÊN NGUỒN NPA/BOTMMO/VIOTP)
+// 📌 CẤU HÌNH DỊCH VỤ
 function getServiceInfo(action) {
   const map = {
     // 4 cổng Shopee NPA
@@ -323,7 +323,7 @@ function getServiceInfo(action) {
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // 2 cổng Shopee Botmmo (Đã ẩn tên nguồn)
+    // 2 cổng Shopee Botmmo
     'rent_shopee_viotp': { name: 'Shopee HV', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
     'rent_shopee_chaycode': { name: 'Shopee HC', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
 
@@ -951,18 +951,18 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE ĐÃ ẨN NGUỒN ĐỐI TÁC
+  // 🛍️ MENU SHOPEE ĐÃ SẮP XẾP LẠI VỊ TRÍ & CHUẨN ĐỊNH DẠNG GIÁ TIỀN
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee HN - 5000', callback_data: 'rent_shopee' }],
+          [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_shopee' }],
+          [{ text: '🛍️ Shopee HV - 5.000đ', callback_data: 'rent_shopee_viotp' }],
+          [{ text: '🛍️ Shopee HC - 5.000đ', callback_data: 'rent_shopee_chaycode' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
-          [{ text: '🛍️ Shopee HV - 5000', callback_data: 'rent_shopee_viotp' }],
-          [{ text: '🛍️ Shopee HC - 5000', callback_data: 'rent_shopee_chaycode' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
         ]
       }
