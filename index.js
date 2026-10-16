@@ -1133,9 +1133,11 @@ bot.on('callback_query', async (query) => {
         console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
 
         const phoneObj = resData.data || resData.Result || {};
-        const foundPhone = phoneObj?.phone_number || phoneObj?.sdt || phoneObj?.number || '';
         
-        // 🎯 Lấy chính xác requestId từ trường url (ví dụ: ?requestId=464168350) do Botmmo cung cấp
+        // 🎯 Đọc số từ trường sdt hoặc phone_number/number
+        const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
+        
+        // 🎯 Lấy requestId chính xác từ URL trả về của Botmmo
         let foundReqId = 'N/A';
         if (resData?.url && resData.url.includes('requestId=')) {
           const match = resData.url.match(/requestId=([^&]+)/);
@@ -1143,8 +1145,8 @@ bot.on('callback_query', async (query) => {
             foundReqId = match[1];
           }
         }
-        if (foundReqId === 'N/A' && phoneObj?.request_id) {
-          foundReqId = phoneObj.request_id;
+        if (foundReqId === 'N/A' && phoneObj?.reference) {
+          foundReqId = phoneObj.reference;
         }
 
         if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
