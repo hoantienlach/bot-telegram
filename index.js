@@ -321,7 +321,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (CHỈ GIỮ LẠI SỐ MỚI mode=4)
+// 📌 CẤU HÌNH DỊCH VỤ (CHỈ SỐ MỚI mode=4)
 function getServiceInfo(action) {
   const map = {
     'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
@@ -329,7 +329,6 @@ function getServiceInfo(action) {
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // Chỉ giữ lại Số mới (mode=4) chạy qua botmmo
     'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '4' },
     'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '4' },
 
@@ -988,7 +987,7 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE CHỈ GIỮ LẠI SỐ MỚI
+  // 🛍️ MENU SHOPEE CHỈ SỐ MỚI
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE\n👉 Vui lòng chọn loại dịch vụ (Số mới):`, {
       chat_id: chatId, message_id: messageId,
@@ -1133,13 +1132,24 @@ bot.on('callback_query', async (query) => {
         const resData = apiResponse.data;
         console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
 
-        const phoneObj = resData.data || resData.Result;
+        const phoneObj = resData.data || resData.Result || {};
         const foundPhone = phoneObj?.phone_number || phoneObj?.sdt || phoneObj?.number || '';
-        const foundReqId = phoneObj?.request_id || phoneObj?.reference || phoneObj?.id || 'N/A';
+        
+        // 🎯 Lấy chính xác requestId từ trường url (ví dụ: ?requestId=464168350) do Botmmo cung cấp
+        let foundReqId = 'N/A';
+        if (resData?.url && resData.url.includes('requestId=')) {
+          const match = resData.url.match(/requestId=([^&]+)/);
+          if (match && match[1]) {
+            foundReqId = match[1];
+          }
+        }
+        if (foundReqId === 'N/A' && phoneObj?.request_id) {
+          foundReqId = phoneObj.request_id;
+        }
 
-        if (foundPhone && foundPhone.length > 5) {
+        if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
           rawPhone = foundPhone;
-          reqId = foundReqId;
+          reqId = foundReqId.toString();
         } else {
           if (!isAdmin) {
             await User.updateOne({ userId: userId }, { $inc: { balance: price } });
@@ -1229,23 +1239,16 @@ bot.on('callback_query', async (query) => {
               const resData = otpRes.data;
               let foundCode = resData.code || resData.otp || resData.sms || resData.msg;
 
-              if (!foundCode && resData.content) {
-                try {
-                  const parsedContent = typeof resData.content === 'string' ? JSON.parse(resData.content) : resData.content;
-                  foundCode = parsedContent.code || parsedContent.otp || parsedContent.sms;
-                } catch (e) {}
-              }
-
-              if (foundCode && typeof foundCode === 'string') {
+              if (resData.status === 'done' && resData.code) {
+                otpCode = resData.code;
+              } else if (foundCode && typeof foundCode === 'string') {
                 const cleanCode = foundCode.trim().toLowerCase();
-                if (!['is_coming', 'too_fast', 'wait', 'pending', 'none', 'timeout'].includes(cleanCode) && cleanCode.length <= 10) {
+                if (!['is_coming', 'too_fast', 'wait', 'pending', 'none', 'timeout', 'task đã chạy'].includes(cleanCode) && cleanCode.length <= 10) {
                   otpCode = foundCode;
                 }
               }
 
-              if (resData.status === 'done' && resData.code) {
-                otpCode = resData.code;
-              } else if (resData.status === 'timeout' || resData.msg?.includes('timeout')) {
+              if (resData.status === 'timeout' || resData.msg?.includes('timeout')) {
                 isCompleted = true;
                 clearInterval(checkInterval);
               }
