@@ -320,7 +320,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (Đã xóa Shopee HC, giữ lại Shopee HV)
+// 📌 CẤU HÌNH DỊCH VỤ (Đã xóa Shopee HC)
 function getServiceInfo(action) {
   const map = {
     'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
@@ -1132,16 +1132,15 @@ bot.on('callback_query', async (query) => {
         const phoneObj = resData.data || resData.Result || {};
         const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
         
-        // Lấy requestId từ URL trả về hoặc trường reference
+        // 🎯 Lấy chính xác trường reference dạng số chuẩn từ Botmmo
         let foundReqId = 'N/A';
-        if (resData?.url && resData.url.includes('requestId=')) {
+        if (phoneObj?.reference) {
+          foundReqId = phoneObj.reference.toString();
+        } else if (resData?.url && resData.url.includes('requestId=')) {
           const match = resData.url.match(/requestId=([^&]+)/);
           if (match && match[1]) {
             foundReqId = match[1];
           }
-        }
-        if (foundReqId === 'N/A' && phoneObj?.reference) {
-          foundReqId = phoneObj.reference;
         }
 
         if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
