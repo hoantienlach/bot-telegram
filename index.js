@@ -174,7 +174,7 @@ const Order = mongoose.model('Order', orderSchema);
 const configSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
   isMaintenanceMode: { type: Boolean, default: false },
-  allowedUsers: { type: [String], default: [] } // Danh sách ID user được phép dùng khi bảo trì
+  allowedUsers: { type: [String], default: [] }
 });
 const Config = mongoose.model('Config', configSchema);
 
@@ -322,17 +322,13 @@ setupBotCommands();
 // 📌 CẤU HÌNH DỊCH VỤ
 function getServiceInfo(action) {
   const map = {
-    // 4 cổng Shopee NPA
     'rent_shopee': { name: 'Shopee HL', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
     'rent_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
-    
-    // 2 cổng Shopee Botmmo
     'rent_shopee_viotp': { name: 'Shopee HV', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
     'rent_shopee_chaycode': { name: 'Shopee HC', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
 
-    // TikTok (qua GmailOTP)
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
     'rent_tt_indo19': { name: 'TikTok Indonesia +62', price: 1200, service_id: '19173', provider: 'gmailotp' },
@@ -342,7 +338,6 @@ function getServiceInfo(action) {
     'rent_tt_colombia7': { name: 'TikTok Colombia +57', price: 1200, service_id: '3429', provider: 'gmailotp' },
     'rent_tt_colombia8': { name: 'TikTok Colombia +57', price: 1200, service_id: '3430', provider: 'gmailotp' },
     
-    // Grab qua NPA
     'rent_grab': { name: 'Grab', price: 3000, service_id: npaServiceIds.grab, provider: 'npa' }
   };
   return map[action];
@@ -550,7 +545,6 @@ bot.on('message', async (msg) => {
     );
   }
 
-  // 🛠️ KIỂM TRA BẢO TRÌ (BỎ QUA CHO ADMIN VÀ CÁC USER ĐƯỢC CHỈ ĐỊNH)
   if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.sendMessage(chatId, `🛠️ HỆ THỐNG ĐANG BẢO TRÌ\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`);
   }
@@ -652,25 +646,6 @@ bot.on('message', async (msg) => {
     }
   }
 
-  if (text.startsWith('/baotri')) {
-    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
-    const parts = text.split(' ');
-    const status = parts[1] ? parts[1].toLowerCase() : '';
-
-    if (status === 'on') {
-      isMaintenanceMode = true;
-      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: true } }, { upsert: true });
-      return bot.sendMessage(chatId, `🔴 Đã BẬT chế độ bảo trì! (Lưu vĩnh viễn trong DB).`);
-    } else if (status === 'off') {
-      isMaintenanceMode = false;
-      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: false } }, { upsert: true });
-      return bot.sendMessage(chatId, `🟢 Đã TẮT chế độ bảo trì! Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
-    } else {
-      return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
-    }
-  }
-
-  // 🛠️ THÊM LỆNH CHO PHÉP USER DÙNG KHI BẢO TRÌ QUA ID
   if (text.startsWith('/baotri_cho')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -688,7 +663,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `✅ Đã cấp quyền cho User ID: \`${targetUserId}\` được phép tiếp tục sử dụng bot trong thời gian bảo trì.`);
   }
 
-  // 🛠️ THÊM LỆNH XÓA USER KHỎI DANH SÁCH BẢO TRÌ QUA ID
   if (text.startsWith('/baotri_xoa')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -702,6 +676,24 @@ bot.on('message', async (msg) => {
     await Config.updateOne({ key: 'system_settings' }, { $set: { allowedUsers: allowedMaintenanceUsers } }, { upsert: true });
 
     return bot.sendMessage(chatId, `✅ Đã thu hồi quyền truy cập của User ID: \`${targetUserId}\` khi bot bảo trì.`);
+  }
+
+  if (text.startsWith('/baotri')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const status = parts[1] ? parts[1].toLowerCase() : '';
+
+    if (status === 'on') {
+      isMaintenanceMode = true;
+      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: true } }, { upsert: true });
+      return bot.sendMessage(chatId, `🔴 Đã BẬT chế độ bảo trì! (Lưu vĩnh viễn trong DB).`);
+    } else if (status === 'off') {
+      isMaintenanceMode = false;
+      await Config.updateOne({ key: 'system_settings' }, { $set: { isMaintenanceMode: false } }, { upsert: true });
+      return bot.sendMessage(chatId, `🟢 Đã TẮT chế độ bảo trì! Bot đã hoạt động bình thường trở lại cho mọi thành viên.`);
+    } else {
+      return bot.sendMessage(chatId, `ℹ️ Trạng thái bảo trì hiện tại: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n\n👉 Cách dùng:\n- Bật: /baotri on\n- Tắt: /baotri off`);
+    }
   }
 
   if (text.startsWith('/sendall')) {
@@ -941,7 +933,6 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  // 🛠️ KIỂM TRA BẢO TRÌ CHO CALLBACK (BỎ QUA CHO ADMIN VÀ USER ĐƯỢC CHỈ ĐỊNH)
   if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
   }
@@ -993,7 +984,6 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE ĐÃ SẮP XẾP LẠI VỊ TRÍ & CHUẨN ĐỊNH DẠNG GIÁ TIỀN
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
