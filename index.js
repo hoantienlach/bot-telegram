@@ -173,19 +173,22 @@ const Order = mongoose.model('Order', orderSchema);
 
 const configSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
-  isMaintenanceMode: { type: Boolean, default: false }
+  isMaintenanceMode: { type: Boolean, default: false },
+  allowedUsers: { type: [String], default: [] }
 });
 const Config = mongoose.model('Config', configSchema);
 
 let isMaintenanceMode = false;
+let allowedMaintenanceUsers = [];
 
 async function loadSystemConfig() {
   try {
     let conf = await Config.findOne({ key: 'system_settings' });
     if (!conf) {
-      conf = await Config.create({ key: 'system_settings', isMaintenanceMode: false });
+      conf = await Config.create({ key: 'system_settings', isMaintenanceMode: false, allowedUsers: [] });
     }
     isMaintenanceMode = conf.isMaintenanceMode;
+    allowedMaintenanceUsers = conf.allowedUsers || [];
     console.log(`⚙️ Trạng thái bảo trì từ DB: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`);
   } catch (err) {
     console.error('Lỗi load cấu hình hệ thống:', err.message);
@@ -298,6 +301,8 @@ async function setupBotCommands() {
       { command: 'km', description: 'Admin: Cài đặt % khuyến mãi nạp' },
       { command: 'hoahong', description: 'Admin: Cài đặt % hoa hồng giới thiệu' },
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
+      { command: 'baotri_cho', description: 'Admin: Thêm ID user được dùng khi bảo trì' },
+      { command: 'baotri_xoa', description: 'Admin: Xóa ID user khỏi danh sách bảo trì' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
       scope: { type: 'chat', chat_id: ADMIN_ID }
@@ -310,7 +315,7 @@ setupBotCommands();
 
 function getServiceInfo(action) {
   const map = {
-    'rent_npa_shopee_tl': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
+    'rent_npa_shopee_tl': { name: 'Shopee', price: 4500, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
     'rent_npa_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_npa_shopee_bo': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
@@ -364,7 +369,8 @@ async function sendMainMenu(chatId, userId) {
                 `💰 Tổng số dư hiện tại trong ví: ${totalBalanceAll.toLocaleString()}đ\n` +
                 `🎁 Mức khuyến mãi nạp: ${depositBonusPercent}%\n` +
                 `🤝 Hoa hồng giới thiệu: ${referralCommissionPercent}%\n` +
-                `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}`;
+                `🛠️ Trạng thái bảo trì: ${isMaintenanceMode ? 'ĐANG BẬT 🔴' : 'ĐANG TẮT 🟢'}\n` +
+                `👥 Danh sách ngoại lệ bảo trì: ${allowedMaintenanceUsers.length > 0 ? allowedMaintenanceUsers.join(', ') : 'Trống'}`;
   }
 
   bot.sendMessage(chatId, menuText, {
@@ -530,7 +536,7 @@ bot.on('message', async (msg) => {
     );
   }
 
-  if (isMaintenanceMode && userId !== ADMIN_ID) {
+  if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.sendMessage(chatId, `🛠️ HỆ THỐNG ĐANG BẢO TRÌ\n\nBot hiện đang tạm dừng hoạt động để nâng cấp và sửa lỗi. Vui lòng quay lại sau!`);
   }
 
@@ -631,6 +637,38 @@ bot.on('message', async (msg) => {
     }
   }
 
+  if (text.startsWith('/baotri_cho')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const targetUserId = parts[1] ? parts[1].trim() : '';
+
+    if (!targetUserId) {
+      return bot.sendMessage(chatId, `⚠️ Vui lòng nhập ID user.\n*Ví dụ:* /baotri_cho 123456789`);
+    }
+
+    if (!allowedMaintenanceUsers.includes(targetUserId)) {
+      allowedMaintenanceUsers.push(targetUserId);
+      await Config.updateOne({ key: 'system_settings' }, { $set: { allowedUsers: allowedMaintenanceUsers } }, { upsert: true });
+    }
+
+    return bot.sendMessage(chatId, `✅ Đã cấp quyền cho User ID: \`${targetUserId}\` được phép tiếp tục sử dụng bot trong thời gian bảo trì.`);
+  }
+
+  if (text.startsWith('/baotri_xoa')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    const parts = text.split(' ');
+    const targetUserId = parts[1] ? parts[1].trim() : '';
+
+    if (!targetUserId) {
+      return bot.sendMessage(chatId, `⚠️ Vui lòng nhập ID user cần xóa.\n*Ví dụ:* /baotri_xoa 123456789`);
+    }
+
+    allowedMaintenanceUsers = allowedMaintenanceUsers.filter(id => id !== targetUserId);
+    await Config.updateOne({ key: 'system_settings' }, { $set: { allowedUsers: allowedMaintenanceUsers } }, { upsert: true });
+
+    return bot.sendMessage(chatId, `✅ Đã thu hồi quyền truy cập của User ID: \`${targetUserId}\` khi bot bảo trì.`);
+  }
+
   if (text.startsWith('/baotri')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
     const parts = text.split(' ');
@@ -684,7 +722,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 📌 LỆNH /NAP QUA HỌ VÀ TÊN
   if (text.startsWith('/nap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.replace('/nap', '').trim().split(' ');
@@ -721,7 +758,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 📌 LỆNH /TRU QUA HỌ VÀ TÊN
   if (text.startsWith('/tru')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.replace('/tru', '').trim().split(' ');
@@ -763,7 +799,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 📌 LỆNH /HOAN (TÌM KIẾM CẢ STRING VÀ NUMBER)
   if (text.startsWith('/hoan')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.split(' ');
@@ -823,7 +858,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 📌 LỆNH /SETNAP: CỘNG HOẶC TRỪ ĐÚNG SỐ TIỀN VÀO TỔNG NẠP QUA HỌ TÊN
   if (text.startsWith('/setnap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
     const parts = text.replace('/setnap', '').trim().split(' ');
@@ -890,7 +924,7 @@ bot.on('callback_query', async (query) => {
     });
   }
 
-  if (isMaintenanceMode && userId !== ADMIN_ID) {
+  if (isMaintenanceMode && userId !== ADMIN_ID && !allowedMaintenanceUsers.includes(userId)) {
     return bot.answerCallbackQuery(query.id, { text: `🛠️ Hệ thống đang bảo trì, vui lòng quay lại sau!`, show_alert: true });
   }
 
@@ -941,13 +975,12 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE ĐÃ ĐƯỢC CẬP NHẬT TIÊU ĐỀ VÀ BỎ SHOPEE 5, 6
   if (action === 'menu_shopee') {
     return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_npa_shopee_tl' }],
+          [{ text: '🛍️ Shopee - 4.500đ', callback_data: 'rent_npa_shopee_tl' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_npa_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
@@ -1028,8 +1061,6 @@ bot.on('callback_query', async (query) => {
       if (provider === 'gmailotp') {
         const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY_GMAILOTP}&id=${serviceId}`);
         const resData = apiResponse.data;
-        
-        console.log(`🔍 Phản hồi GmailOTP cho dịch vụ ${serviceId}:`, resData);
 
         const phoneNumber = resData ? (resData.number || resData.phone || resData.phoneNumber || resData.msg) : null;
         const requestId = resData ? (resData.request_id || resData.id || resData.requestId) : null;
@@ -1054,8 +1085,6 @@ bot.on('callback_query', async (query) => {
           headers: { 'Authorization': `Bearer ${API_KEY_NPA}`, 'Content-Type': 'application/json' }
         });
         const resData = apiResponse.data;
-
-        console.log(`🔍 Phản hồi NPA cho dịch vụ ${serviceId}:`, resData);
 
         if (resData && resData.ResponseCode === 0 && resData.Result) {
           rawPhone = resData.Result.Number || '';
