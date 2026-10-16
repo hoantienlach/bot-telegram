@@ -167,6 +167,8 @@ const orderSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   serviceName: { type: String },
   status: { type: String, default: 'pending' },
+  site: { type: String }, // Lưu site để check OTP chính xác
+  apikey: { type: String },
   createdAt: { type: Date, default: Date.now, expires: 86400 }
 });
 const Order = mongoose.model('Order', orderSchema);
@@ -1077,6 +1079,8 @@ bot.on('callback_query', async (query) => {
       let rawPhone = '';
       let reqId = '';
       let countryLabel = serviceInfo.name;
+      let site = '';
+      let apiKey = '';
 
       if (provider === 'gmailotp') {
         const apiResponse = await axios.get(`https://gmailotp.site/api?action=get_number&key=${API_KEY_GMAILOTP}&id=${serviceId}`);
@@ -1122,8 +1126,8 @@ bot.on('callback_query', async (query) => {
           return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
         }
       } else if (provider === 'botmmo') {
-        const site = serviceInfo.site;
-        const apiKey = serviceInfo.apikey;
+        site = serviceInfo.site;
+        apiKey = serviceInfo.apikey;
         const rentMode = serviceInfo.mode || '4'; // Nhận mode động (4 cho số mới, 2 cho đá số)
 
         const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
@@ -1157,7 +1161,15 @@ bot.on('callback_query', async (query) => {
       }
 
       if (reqId && reqId !== 'N/A') {
-        await Order.create({ reqId: reqId.toString(), userId: userId, price: price, serviceName: countryLabel, status: 'pending' }).catch(() => {});
+        await Order.create({ 
+          reqId: reqId.toString(), 
+          userId: userId, 
+          price: price, 
+          serviceName: countryLabel, 
+          status: 'pending',
+          site: site,
+          apikey: apiKey
+        }).catch(() => {});
       }
 
       const balanceDisplay = isAdmin ? "Miễn phí (Admin)" : `${updatedUser.balance.toLocaleString()}đ`;
@@ -1217,9 +1229,9 @@ bot.on('callback_query', async (query) => {
             const otpRes = await axios.get(checkOtpUrl, {
               headers: { 'APIKEY': KEY_SERVER },
               timeout: 5000
-            });
+            }).catch(() => null);
 
-            if (otpRes.data) {
+            if (otpRes && otpRes.data) {
               const resData = otpRes.data;
               let foundCode = resData.code || resData.otp || resData.sms || resData.msg;
 
