@@ -319,15 +319,19 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ
+// 📌 CẤU HÌNH DỊCH VỤ (PHÂN TÁCH RÕ SỐ MỚI VÀ ĐÁ SỐ CHO BOTMMO)
 function getServiceInfo(action) {
   const map = {
-    'rent_shopee': { name: 'Shopee HL', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
+    'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
     'rent_shopee_call': { name: 'Shopee Call', price: 2500, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
-    'rent_shopee_viotp': { name: 'Shopee HV', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
-    'rent_shopee_chaycode': { name: 'Shopee HC', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
+    
+    // Shopee HV & HC phân tách rõ loại Số mới / Đá số
+    'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
+    'rent_shopee_viotp_daso': { name: 'Shopee HV (Đá số)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo' },
+    'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
+    'rent_shopee_chaycode_daso': { name: 'Shopee HC (Đá số)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo' },
 
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
@@ -984,33 +988,21 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
+  // 🛍️ MENU SHOPEE PHÂN TÁCH RÕ RÀNG NÚT SỐ MỚI / ĐÁ SỐ
   if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE (KHÔNG BẢO HÀNH)`, {
+    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE\n👉 Vui lòng chọn loại dịch vụ và tiêu chí số:`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_shopee' }],
-          [{ text: '🛍️ Shopee HV - 5.000đ', callback_data: 'select_opt_viotp' }],
-          [{ text: '🛍️ Shopee HC - 5.000đ', callback_data: 'select_opt_chaycode' }],
+          [{ text: '✨ Shopee HV (Số mới) - 5.000đ', callback_data: 'rent_shopee_viotp_moi' }],
+          [{ text: '⚡ Shopee HV (Đá số) - 5.000đ', callback_data: 'rent_shopee_viotp_daso' }],
+          [{ text: '✨ Shopee HC (Số mới) - 5.000đ', callback_data: 'rent_shopee_chaycode_moi' }],
+          [{ text: '⚡ Shopee HC (Đá số) - 5.000đ', callback_data: 'rent_shopee_chaycode_daso' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
           [{ text: '⬅️ Quay lại', callback_data: 'back_main' }]
-        ]
-      }
-    });
-  }
-
-  // ⚙️ MENU CHỌN LOẠI SỐ (CHỈ CÒN SỐ MỚI VÀ ĐÁ SỐ)
-  if (action === 'select_opt_viotp' || action === 'select_opt_chaycode') {
-    const baseAction = action === 'select_opt_viotp' ? 'rent_shopee_viotp' : 'rent_shopee_chaycode';
-    return bot.editMessageText(`⚙️ CHỌN LOẠI SỐ (THUÊ SHOPEE)\n\n👉 Vui lòng chọn tiêu chí lọc số trước khi hệ thống check:`, {
-      chat_id: chatId, message_id: messageId,
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✨ Số mới', callback_data: `${baseAction}_opt_1` }],
-          [{ text: '⚡ Đá số', callback_data: `${baseAction}_opt_3` }],
-          [{ text: '⬅️ Quay lại Shopee', callback_data: 'menu_shopee' }]
         ]
       }
     });
@@ -1058,16 +1050,7 @@ bot.on('callback_query', async (query) => {
       return bot.answerCallbackQuery(query.id, { text: '⚠️ Bạn bấm quá nhanh, vui lòng từ từ!', show_alert: true });
     }
 
-    let realAction = action;
-    let selectedOption = '1'; // Mặc định số mới
-
-    if (action.includes('_opt_')) {
-      const parts = action.split('_opt_');
-      realAction = parts[0]; 
-      selectedOption = parts[1]; // 1: Số mới, 3: Đá số
-    }
-
-    const serviceInfo = getServiceInfo(realAction);
+    const serviceInfo = getServiceInfo(action);
     if (!serviceInfo) return;
 
     const price = serviceInfo.price;
@@ -1140,7 +1123,7 @@ bot.on('callback_query', async (query) => {
         const site = serviceInfo.site;
         const apiKey = serviceInfo.apikey;
 
-        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&option=${selectedOption}&hostname=https://botmmo.xyz`;
+        const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=4&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
         const apiResponse = await axios.get(rentUrl, {
           headers: { 'APIKEY': KEY_SERVER }
@@ -1166,7 +1149,7 @@ bot.on('callback_query', async (query) => {
             return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số hoặc chưa lọc được số mới, vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số, vui lòng thử lại sau!`);
         }
       }
 
