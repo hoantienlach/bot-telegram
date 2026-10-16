@@ -1125,31 +1125,46 @@ bot.on('callback_query', async (query) => {
 
         const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
-        const apiResponse = await axios.get(rentUrl, {
-          headers: { 'APIKEY': KEY_SERVER }
-        });
-        
-        const resData = apiResponse.data;
-        console.log(`🔍 Phản hồi API thuê số BOTMMO (${site}) - mode ${rentMode}:`, resData);
-
-        const phoneObj = resData.data || resData.Result || {};
-        const foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
-        
-        // 🎯 Lấy chính xác requestId từ trường url (ví dụ: ?requestId=464168350) do Botmmo cung cấp
+        let successRent = false;
+        let resData = null;
+        let phoneObj = {};
+        let foundPhone = '';
         let foundReqId = 'N/A';
-        if (resData?.url && resData.url.includes('requestId=')) {
-          const match = resData.url.match(/requestId=([^&]+)/);
-          if (match && match[1]) {
-            foundReqId = match[1];
-          }
-        }
-        
-        // Fallback nếu url không có thì lấy trực tiếp request_id từ phoneObj
-        if (foundReqId === 'N/A' && phoneObj?.request_id) {
-          foundReqId = phoneObj.request_id;
+
+        // 🔄 Vòng lặp tự động quét tối đa 15 lần y hệt cơ chế trên trang quản lý web của bạn
+        for (let attempt = 1; attempt <= 15; attempt++) {
+          try {
+            const apiResponse = await axios.get(rentUrl, {
+              headers: { 'APIKEY': KEY_SERVER },
+              timeout: 5000
+            });
+            
+            resData = apiResponse.data;
+            phoneObj = resData.data || resData.Result || {};
+            foundPhone = phoneObj?.sdt || phoneObj?.phone_number || phoneObj?.number || '';
+            
+            // Kiểm tra xem số đã sạch (chưa đăng ký Shopee) hay chưa
+            const isCleanNumber = phoneObj?.ket_qua === true || (resData.status === true && !phoneObj?.msg?.includes('đã đăng ký'));
+
+            // Trích xuất mã Request ID chuẩn (ưu tiên reference hoặc url)
+            if (phoneObj?.reference) {
+              foundReqId = phoneObj.reference.toString();
+            } else if (resData?.url && resData.url.includes('requestId=')) {
+              const match = resData.url.match(/requestId=([^&]+)/);
+              if (match && match[1]) foundReqId = match[1];
+            }
+
+            if (foundPhone && foundPhone.length > 5) {
+              if (isCleanNumber || attempt === 15) {
+                successRent = true;
+                break;
+              }
+            }
+          } catch (e) {}
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
 
-        if (foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
+        if (successRent && foundPhone && foundPhone.length > 5 && foundReqId !== 'N/A') {
           rawPhone = foundPhone;
           reqId = foundReqId.toString();
         } else {
@@ -1159,10 +1174,10 @@ bot.on('callback_query', async (query) => {
 
           if (isAdmin) {
             const errorDetail = JSON.stringify(resData) || 'Phản hồi rỗng';
-            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Phản hồi: ${errorDetail}`);
+            return bot.sendMessage(chatId, `❌ [ADMIN DEBUG - BOTMMO (${site})]\n- Dịch vụ: ${countryLabel}\n- Quét 15 lần không tìm được số mới.\n- Phản hồi cuối: ${errorDetail}`);
           }
 
-          return bot.sendMessage(chatId, `❌ Dịch vụ hiện tại đang hết số theo tiêu chí này, vui lòng thử lại sau!`);
+          return bot.sendMessage(chatId, `❌ Kho số mới hiện tại đang bận hoặc hết số sạch, vui lòng thử lại sau!`);
         }
       }
 
@@ -1259,7 +1274,7 @@ bot.on('callback_query', async (query) => {
 
           if (otpCode && !isCompleted) {
             isCompleted = true;
-            clearInterval(check_interval = true);
+            clearInterval(checkInterval);
             clearTimeout(timeoutRefund);
             
             if (reqId && reqId !== 'N/A') {
