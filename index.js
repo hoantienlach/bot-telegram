@@ -167,7 +167,7 @@ const orderSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   serviceName: { type: String },
   status: { type: String, default: 'pending' },
-  site: { type: String }, // Lưu site để check OTP chính xác
+  site: { type: String },
   apikey: { type: String },
   createdAt: { type: Date, default: Date.now, expires: 86400 }
 });
@@ -321,7 +321,7 @@ async function setupBotCommands() {
 }
 setupBotCommands();
 
-// 📌 CẤU HÌNH DỊCH VỤ (PHÂN TÁCH MỚI mode=4 VÀ ĐÁ SỐ mode=2)
+// 📌 CẤU HÌNH DỊCH VỤ (CHỈ GIỮ LẠI SỐ MỚI mode=4)
 function getServiceInfo(action) {
   const map = {
     'rent_shopee': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
@@ -329,13 +329,9 @@ function getServiceInfo(action) {
     'rent_shopee_muot': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
     
-    // Shopee HV & HC - Số mới (mode=4)
+    // Chỉ giữ lại Số mới (mode=4) chạy qua botmmo
     'rent_shopee_viotp_moi': { name: 'Shopee HV (Số mới)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '4' },
     'rent_shopee_chaycode_moi': { name: 'Shopee HC (Số mới)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '4' },
-
-    // Shopee HV & HC - Đá số (mode=2)
-    'rent_shopee_viotp_daso': { name: 'Shopee HV (Đá số)', price: 5000, service_id: 'shopee', site: 'viotp', apikey: API_KEY_VIOTP, provider: 'botmmo', mode: '2' },
-    'rent_shopee_chaycode_daso': { name: 'Shopee HC (Đá số)', price: 5000, service_id: 'shopee', site: 'chaycodeso3', apikey: API_KEY_CHAYCODESO3, provider: 'botmmo', mode: '2' },
 
     'rent_tt_us10': { name: 'TikTok US +1', price: 1200, service_id: '19272', provider: 'gmailotp' },
     'rent_tt_us9': { name: 'TikTok US +1', price: 1200, service_id: '19194', provider: 'gmailotp' },
@@ -992,17 +988,15 @@ bot.on('callback_query', async (query) => {
     return sendMainMenu(chatId, userId);
   }
 
-  // 🛍️ MENU SHOPEE PHÂN TÁCH RÕ RÀNG NÚT SỐ MỚI / ĐÁ SỐ
+  // 🛍️ MENU SHOPEE CHỈ GIỮ LẠI SỐ MỚI
   if (action === 'menu_shopee') {
-    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE\n👉 Vui lòng chọn loại dịch vụ và tiêu chí số:`, {
+    return bot.editMessageText(`🛍️ CHỌN DỊCH VỤ SHOPEE\n👉 Vui lòng chọn loại dịch vụ (Số mới):`, {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
           [{ text: '🛍️ Shopee HN - 5.000đ', callback_data: 'rent_shopee' }],
           [{ text: '✨ Shopee HV (Số mới) - 5.000đ', callback_data: 'rent_shopee_viotp_moi' }],
-          [{ text: '⚡ Shopee HV (Đá số) - 5.000đ', callback_data: 'rent_shopee_viotp_daso' }],
           [{ text: '✨ Shopee HC (Số mới) - 5.000đ', callback_data: 'rent_shopee_chaycode_moi' }],
-          [{ text: '⚡ Shopee HC (Đá số) - 5.000đ', callback_data: 'rent_shopee_chaycode_daso' }],
           [{ text: '🛍️ Shopee Call - 2.500đ', callback_data: 'rent_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_shopee_muot' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_shopee_trau' }],
@@ -1128,7 +1122,7 @@ bot.on('callback_query', async (query) => {
       } else if (provider === 'botmmo') {
         site = serviceInfo.site;
         apiKey = serviceInfo.apikey;
-        const rentMode = serviceInfo.mode || '4'; // Nhận mode động (4 cho số mới, 2 cho đá số)
+        const rentMode = serviceInfo.mode || '4'; // Luôn là mode=4 (Số mới)
 
         const rentUrl = `https://botmmo.xyz/api/rent_number.php?mode=${rentMode}&site=${site}&apikey=${apiKey}&serviceId=${serviceId}&network=7&hostname=https://botmmo.xyz`;
         
