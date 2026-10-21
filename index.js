@@ -458,11 +458,12 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
+  const bankId = 'MB';
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
   
-  // Link VietQR chính thức đuôi .png cực nhanh, không lo lỗi ảnh hay hiện logo SePay
-  const qrUrl = `https://api.vietqr.io/MB/${accountNo}/${amount}/${encodeURIComponent(content)}/compact2.png?accountName=${encodeURIComponent(accountName)}`;
+  // Dùng link VietQR chuẩn sạch bóng logo SePay, tải ảnh siêu mượt
+  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
                 `🏛️ Ngân hàng: MB Bank (MB)\n` +
