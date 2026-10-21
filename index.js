@@ -458,59 +458,57 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
+  const bankId = 'MB';
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
 
-  let textInfo = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
-                 `🏛️ Ngân hàng: MB Bank (MB)\n` +
-                 `💳 Số tài khoản: \`${accountNo}\`\n` +
-                 `👤 Chủ tài khoản: *${accountName}*\n` +
-                 `💵 Số tiền: *${amount.toLocaleString()}đ*\n` +
-                 `📝 Nội dung chuyển khoản: \`${content}\`\n\n`;
+  let captionText = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
+                    `🏛️ Ngân hàng: MB Bank (MB)\n` +
+                    `💳 Số tài khoản: \`${accountNo}\`\n` +
+                    `👤 Chủ tài khoản: *${accountName}*\n` +
+                    `💵 Số tiền: *${amount.toLocaleString()}đ*\n` +
+                    `📝 Nội dung chuyển khoản: \`${content}\`\n\n`;
 
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    textInfo += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
-                `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
+    captionText += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
+                   `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
   }
 
-  textInfo += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
-              `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
+  captionText += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
+                 `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
+      [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
+      [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
+    ]
+  };
+
+  // 🔗 Tạo link tải ảnh trực tiếp chuẩn định dạng PNG để Telegram tải không bị lỗi
+  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   try {
-    // 1. Tạo và gửi ẢNH QR riêng biệt lên khung chat
-    const apiRes = await axios.post('https://api.vietqr.io/v2/generate', {
-      accountNo: accountNo,
-      accountName: accountName,
-      acqId: '970422', // Mã BIN MB Bank
-      amount: amount,
-      addInfo: content,
-      template: 'compact2'
+    // Tải dữ liệu ảnh về dưới dạng Buffer trực tiếp trên server để gửi Telegram
+    const imageResponse = await axios.get(qrUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+    // Gửi ảnh kèm theo Caption chữ và nút bấm dính liền phía dưới
+    await bot.sendPhoto(chatId, imageBuffer, {
+      caption: captionText,
+      parse_mode: 'Markdown',
+      reply_markup: replyMarkup
     });
-
-    if (apiRes.data && apiRes.data.data && apiRes.data.data.qrDataURL) {
-      const base64Data = apiRes.data.data.qrDataURL.replace(/^data:image\/png;base64,/, "");
-      const imageBuffer = Buffer.from(base64Data, 'base64');
-
-      // Gửi riêng ảnh QR
-      await bot.sendPhoto(chatId, imageBuffer);
-    }
   } catch (err) {
-    console.error('Lỗi tạo ảnh QR VietQR:', err.message);
+    console.error('Lỗi khi tải/gửi ảnh QR:', err.message);
+    // Phương án dự phòng nếu xảy ra lỗi tải ảnh
+    bot.sendMessage(chatId, captionText, {
+      parse_mode: 'Markdown',
+      reply_markup: replyMarkup
+    });
   }
-
-  // 2. Gửi TIN NHẮN CHỮ kèm theo các nút thao tác ngay bên dưới ảnh
-  bot.sendMessage(chatId, textInfo, {
-    parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
-        [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
-        [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
-      ]
-    }
-  }).catch(() => {});
 }
 
 bot.on('message', async (msg) => {
