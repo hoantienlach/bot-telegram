@@ -451,7 +451,7 @@ async function sendDepositMenu(chatId, messageId = null) {
   }
 }
 
-// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (CHUẨN MBBANK)
+// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (ĐÃ MÃ HÓA URL CHUẨN XÁC)
 async function createAndSendQR(chatId, userId, amount, fullName) {
   const content = `${fullName} chuyen tien`;
   const orderId = 'ORD' + Date.now();
