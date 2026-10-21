@@ -462,7 +462,6 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
   
-  // Dùng link VietQR chuẩn sạch bóng logo SePay, tải ảnh siêu mượt
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
@@ -482,18 +481,24 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   caption += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
              `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
 
-  bot.sendPhoto(chatId, qrUrl, {
-    parse_mode: 'Markdown',
-    caption: caption,
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
-        [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
-        [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
-      ]
-    }
-  }).catch((err) => {
-    console.error('Lỗi sendPhoto QR:', err.message);
+  try {
+    // Tải ảnh trực tiếp về dạng Buffer ngay trên server để tránh Telegram bị lỗi đường truyền
+    const imageResponse = await axios.get(qrUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+    await bot.sendPhoto(chatId, imageBuffer, {
+      parse_mode: 'Markdown',
+      caption: caption,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
+          [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
+          [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
+        ]
+      }
+    });
+  } catch (err) {
+    console.error('Lỗi tải/gửi ảnh QR:', err.message);
     bot.sendMessage(chatId, caption, {
       parse_mode: 'Markdown',
       reply_markup: {
@@ -504,7 +509,7 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
         ]
       }
     });
-  });
+  }
 }
 
 bot.on('message', async (msg) => {
