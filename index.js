@@ -451,17 +451,17 @@ async function sendDepositMenu(chatId, messageId = null) {
   }
 }
 
-// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (ĐÃ ĐỔI SANG MBBANK CHÍNH THỨC)
+// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (CHUẨN MBBANK)
 async function createAndSendQR(chatId, userId, amount, fullName) {
   const content = `${fullName} chuyen tien`;
   const orderId = 'ORD' + Date.now();
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MB';
+  const bankId = '970422';
   const accountNo = '0382936287';
   const accountName = 'DINH VAN LINH';
-  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
+  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MBBANK)\n\n` +
                 `🏛️ Ngân hàng: MBBank (MB)\n` +
@@ -491,6 +491,8 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
         [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
       ]
     }
+  }).catch((err) => {
+    console.error('Lỗi gửi ảnh QR:', err.message);
   });
 }
 
