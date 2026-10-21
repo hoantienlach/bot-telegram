@@ -487,17 +487,19 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
     ]
   };
 
-  const timestamp = Date.now();
-  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}&t=${timestamp}`;
+  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   try {
-    await bot.sendPhoto(chatId, qrImageUrl, {
+    const response = await axios.get(qrImageUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data, 'binary');
+
+    await bot.sendPhoto(chatId, imageBuffer, {
       caption: captionText,
       parse_mode: 'Markdown',
       reply_markup: replyMarkup
     });
   } catch (err) {
-    console.error('Lỗi gửi ảnh QR:', err.message);
+    console.error('Lỗi tải/gửi ảnh Buffer QR:', err.message);
     bot.sendMessage(chatId, captionText, {
       parse_mode: 'Markdown',
       reply_markup: replyMarkup
