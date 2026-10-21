@@ -25,12 +25,13 @@ function removeAccentsAndUpperCase(str) {
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
-    console.log('👉 Nhận Webhook SePay:', data);
+    console.log('👉 Nhận Webhook SePay:', JSON.stringify(data));
 
-    const sepayContent = (data.content || data.description || '').toLowerCase();
+    const rawContent = data.content || data.description || '';
+    const sepayContentClean = removeAccentsAndUpperCase(rawContent);
     const transferAmount = parseInt(data.transferAmount || data.amount || 0, 10);
 
-    if (!transferAmount || !sepayContent) {
+    if (!transferAmount || !sepayContentClean) {
       return res.status(200).json({ success: false, message: 'Dữ liệu không hợp lệ' });
     }
 
@@ -42,8 +43,8 @@ app.post('/webhook/sepay', async (req, res) => {
     let pendingDeposit = null;
 
     for (const dep of pendingDeposits) {
-      const dbContent = dep.content.toLowerCase();
-      if (sepayContent.includes(dbContent)) {
+      const dbContentClean = removeAccentsAndUpperCase(dep.content);
+      if (sepayContentClean.includes(dbContentClean)) {
         pendingDeposit = dep;
         break;
       }
@@ -52,8 +53,8 @@ app.post('/webhook/sepay', async (req, res) => {
     if (!pendingDeposit) {
       const allUsers = await User.find({ fullName: { $ne: null } });
       for (const u of allUsers) {
-        const nameClean = u.fullName.toLowerCase();
-        if (sepayContent.includes(nameClean)) {
+        const nameClean = removeAccentsAndUpperCase(u.fullName);
+        if (sepayContentClean.includes(nameClean)) {
           pendingDeposit = {
             userId: u.userId,
             amount: transferAmount,
@@ -124,7 +125,7 @@ app.post('/webhook/sepay', async (req, res) => {
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Lỗi Webhook nạp tiền:', err.message);
-    res.status(500).json({ success: false });
+    res.status(200).json({ success: false, error: err.message });
   }
 });
 
@@ -457,12 +458,11 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MBBank'; 
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
   
-  // Dùng domain vietqr.app hoạt động cực kỳ nhanh và ổn định trên Telegram
-  const qrUrl = `https://vietqr.app/img?bank=${bankId}&acc=${accountNo}&amount=${amount}&memo=${encodeURIComponent(content)}&holder=${encodeURIComponent(accountName)}&template=compact&showinfo=true`;
+  // Link tạo mã QR VietQR chuẩn sạch bóng logo SePay
+  const qrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
                 `🏛️ Ngân hàng: MB Bank (MB)\n` +
@@ -737,15 +737,20 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/nap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
-    const parts = text.replace('/nap', '').trim().split(' ');
     
-    if (parts.length < 2) {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap NGUYEN VAN A 50000`);
+    const rawArgs = text.replace('/nap', '').trim();
+    if (!rawArgs) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp: /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap DINH CONG HOAT 10000`);
     }
 
-    const amountStr = parts[parts.length - 1].replace(/[^0-9]/g, '');
+    const lastSpaceIndex = rawArgs.lastIndexOf(' ');
+    if (lastSpaceIndex === -1) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ! Vui lòng nhập Họ tên và Số tiền.`);
+    }
+
+    const nameQuery = rawArgs.substring(0, lastSpaceIndex).trim();
+    const amountStr = rawArgs.substring(lastSpaceIndex + 1).replace(/[^0-9]/g, '');
     const amount = parseInt(amountStr, 10);
-    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
     const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
 
     if (isNaN(amount) || amount <= 0 || !cleanSearchName) {
@@ -965,7 +970,7 @@ bot.on('callback_query', async (query) => {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
 
-    userState.delete(userId); // Xóa sạch kẹt trạng thái cũ
+    userState.delete(userId);
 
     if (user.fullName) {
       return createAndSendQR(chatId, userId, amount, user.fullName);
