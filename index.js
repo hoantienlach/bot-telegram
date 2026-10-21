@@ -487,23 +487,16 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
     ]
   };
 
-  // 🔗 Tạo link tải ảnh trực tiếp chuẩn định dạng PNG để Telegram tải không bị lỗi
-  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
+  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   try {
-    // Tải dữ liệu ảnh về dưới dạng Buffer trực tiếp trên server để gửi Telegram
-    const imageResponse = await axios.get(qrUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(imageResponse.data, 'binary');
-
-    // Gửi ảnh kèm theo Caption chữ và nút bấm dính liền phía dưới
-    await bot.sendPhoto(chatId, imageBuffer, {
+    await bot.sendPhoto(chatId, qrImageUrl, {
       caption: captionText,
       parse_mode: 'Markdown',
       reply_markup: replyMarkup
     });
   } catch (err) {
-    console.error('Lỗi khi tải/gửi ảnh QR:', err.message);
-    // Phương án dự phòng nếu xảy ra lỗi tải ảnh
+    console.error('Lỗi gửi ảnh QR:', err.message);
     bot.sendMessage(chatId, captionText, {
       parse_mode: 'Markdown',
       reply_markup: replyMarkup
