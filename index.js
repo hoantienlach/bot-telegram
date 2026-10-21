@@ -25,13 +25,12 @@ function removeAccentsAndUpperCase(str) {
 app.post('/webhook/sepay', async (req, res) => {
   try {
     const data = req.body;
-    console.log('👉 Nhận Webhook SePay:', JSON.stringify(data));
+    console.log('👉 Nhận Webhook SePay:', data);
 
-    const rawContent = data.content || data.description || '';
-    const sepayContentClean = removeAccentsAndUpperCase(rawContent);
+    const sepayContent = (data.content || data.description || '').toLowerCase();
     const transferAmount = parseInt(data.transferAmount || data.amount || 0, 10);
 
-    if (!transferAmount || !sepayContentClean) {
+    if (!transferAmount || !sepayContent) {
       return res.status(200).json({ success: false, message: 'Dữ liệu không hợp lệ' });
     }
 
@@ -43,8 +42,8 @@ app.post('/webhook/sepay', async (req, res) => {
     let pendingDeposit = null;
 
     for (const dep of pendingDeposits) {
-      const dbContentClean = removeAccentsAndUpperCase(dep.content);
-      if (sepayContentClean.includes(dbContentClean)) {
+      const dbContent = dep.content.toLowerCase();
+      if (sepayContent.includes(dbContent)) {
         pendingDeposit = dep;
         break;
       }
@@ -53,8 +52,8 @@ app.post('/webhook/sepay', async (req, res) => {
     if (!pendingDeposit) {
       const allUsers = await User.find({ fullName: { $ne: null } });
       for (const u of allUsers) {
-        const nameClean = removeAccentsAndUpperCase(u.fullName);
-        if (sepayContentClean.includes(nameClean)) {
+        const nameClean = u.fullName.toLowerCase();
+        if (sepayContent.includes(nameClean)) {
           pendingDeposit = {
             userId: u.userId,
             amount: transferAmount,
@@ -125,7 +124,7 @@ app.post('/webhook/sepay', async (req, res) => {
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Lỗi Webhook nạp tiền:', err.message);
-    res.status(200).json({ success: false, error: err.message });
+    res.status(500).json({ success: false });
   }
 });
 
@@ -458,53 +457,53 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MB';
+  const bankId = 'MBBank'; 
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
+  
+  // Dùng domain vietqr.app hoạt động cực kỳ nhanh và ổn định trên Telegram
+  const qrUrl = `https://vietqr.app/img?bank=${bankId}&acc=${accountNo}&amount=${amount}&memo=${encodeURIComponent(content)}&holder=${encodeURIComponent(accountName)}&template=compact&showinfo=true`;
 
-  let captionText = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
-                    `🏛️ Ngân hàng: MB Bank (MB)\n` +
-                    `💳 Số tài khoản: \`${accountNo}\`\n` +
-                    `👤 Chủ tài khoản: *${accountName}*\n` +
-                    `💵 Số tiền: *${amount.toLocaleString()}đ*\n` +
-                    `📝 Nội dung chuyển khoản: \`${content}\`\n\n`;
+  let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
+                `🏛️ Ngân hàng: MB Bank (MB)\n` +
+                `💳 Số tài khoản: \`${accountNo}\`\n` +
+                `👤 Chủ tài khoản: *${accountName}*\n` +
+                `💵 Số tiền: *${amount.toLocaleString()}đ*\n` +
+                `📝 Nội dung chuyển khoản: \`${content}\`\n\n`;
 
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    captionText += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
-                   `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
+               `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
   }
 
-  captionText += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
-                 `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
+  caption += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
+             `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
 
-  const replyMarkup = {
-    inline_keyboard: [
-      [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
-      [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
-      [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
-    ]
-  };
-
-  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
-
-  try {
-    const response = await axios.get(qrImageUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(response.data, 'binary');
-
-    await bot.sendPhoto(chatId, imageBuffer, {
-      caption: captionText,
+  bot.sendPhoto(chatId, qrUrl, {
+    parse_mode: 'Markdown',
+    caption: caption,
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
+        [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
+        [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
+      ]
+    }
+  }).catch((err) => {
+    console.error('Lỗi sendPhoto QR:', err.message);
+    bot.sendMessage(chatId, caption, {
       parse_mode: 'Markdown',
-      reply_markup: replyMarkup
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
+          [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
+          [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
+        ]
+      }
     });
-  } catch (err) {
-    console.error('Lỗi tải/gửi ảnh Buffer QR:', err.message);
-    bot.sendMessage(chatId, captionText, {
-      parse_mode: 'Markdown',
-      reply_markup: replyMarkup
-    });
-  }
+  });
 }
 
 bot.on('message', async (msg) => {
@@ -738,20 +737,15 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/nap')) {
     if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Không có quyền!`);
+    const parts = text.replace('/nap', '').trim().split(' ');
     
-    const rawArgs = text.replace('/nap', '').trim();
-    if (!rawArgs) {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp: /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap DINH CONG HOAT 10000`);
+    if (parts.length < 2) {
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap NGUYEN VAN A 50000`);
     }
 
-    const lastSpaceIndex = rawArgs.lastIndexOf(' ');
-    if (lastSpaceIndex === -1) {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ! Vui lòng nhập Họ tên và Số tiền.`);
-    }
-
-    const nameQuery = rawArgs.substring(0, lastSpaceIndex).trim();
-    const amountStr = rawArgs.substring(lastSpaceIndex + 1).replace(/[^0-9]/g, '');
+    const amountStr = parts[parts.length - 1].replace(/[^0-9]/g, '');
     const amount = parseInt(amountStr, 10);
+    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
     const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
 
     if (isNaN(amount) || amount <= 0 || !cleanSearchName) {
@@ -971,7 +965,7 @@ bot.on('callback_query', async (query) => {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
 
-    userState.delete(userId);
+    userState.delete(userId); // Xóa sạch kẹt trạng thái cũ
 
     if (user.fullName) {
       return createAndSendQR(chatId, userId, amount, user.fullName);
