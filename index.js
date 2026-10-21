@@ -377,7 +377,7 @@ async function sendMainMenu(chatId, userId) {
     reply_markup: {
       inline_keyboard: [
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
-        [{ text: '🛍️ Shopee', callback_data: 'menu_shopee' }],
+        [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
         [{ text: '🚗 Thuê Grap', callback_data: 'menu_grab' }],
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
         [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
@@ -451,7 +451,7 @@ async function sendDepositMenu(chatId, messageId = null) {
   }
 }
 
-// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (ÉP LUÔN TÊN DINH VAN LINH KHÔNG CẦN HỎI LẠI)
+// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (LUÔN DÙNG TÊN DINH VAN LINH KHÔNG CẦN HỎI)
 async function createAndSendQR(chatId, userId, amount) {
   const fullName = 'DINH VAN LINH';
   const content = `${fullName} chuyen tien`;
