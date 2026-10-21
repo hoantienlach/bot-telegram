@@ -457,9 +457,9 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MB'; // Cập nhật sang MB Bank
-  const accountNo = '0382936287'; // Số tài khoản mới
-  const accountName = 'DINH VAN LINH'; // Chủ tài khoản mới
+  const bankId = 'MB'; // Mã chuẩn MB Bank
+  const accountNo = '0382936287'; 
+  const accountName = 'DINH VAN LINH';
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
