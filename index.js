@@ -457,29 +457,28 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
 
   await Deposit.create({ orderId, userId, amount, content, status: 'pending' });
 
-  const bankId = 'MBBank'; 
-  const accountNo = '0382936287'; 
-  const accountName = 'DINH VAN LINH';
-  
-  // Dùng domain vietqr.app hoạt động cực kỳ nhanh và ổn định trên Telegram
-  const qrUrl = `https://vietqr.app/img?bank=${bankId}&acc=${accountNo}&amount=${amount}&memo=${encodeURIComponent(content)}&holder=${encodeURIComponent(accountName)}&template=compact&showinfo=true`;
+  const bankId = 'TPB';
+  const accountNo = '10005968827';
+  const accountName = 'DINH CONG HOAT';
+  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
 
-  let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
-                `🏛️ Ngân hàng: MB Bank (MB)\n` +
-                `💳 Số tài khoản: \`${accountNo}\`\n` +
-                `👤 Chủ tài khoản: *${accountName}*\n` +
-                `💵 Số tiền: *${amount.toLocaleString()}đ*\n` +
-                `📝 Nội dung chuyển khoản: \`${content}\`\n\n`;
+  let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (TPBANK)\n\n` +
+                `🏛️ Ngân hàng: TPBank\n` +
+                `💳 Số tài khoản: ${accountNo}\n` +
+                `👤 Chủ tài khoản: ${accountName}\n` +
+                `💵 Số tiền: ${amount.toLocaleString()}đ\n`;
 
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
     caption += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
-               `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
+               `💰 Nhận thực tế vào ví: ${totalVal.toLocaleString()}đ\n`;
   }
 
-  caption += `⚠️ *LƯU Ý:* Vui lòng chuyển **ĐÚNG NỘI DUNG** bên trên để tiền vào ví tự động sau vài giây!\n` +
-             `⏰ Mã QR có hiệu lực trong vòng **10 PHÚT**.`;
+  caption += `📝 Nội dung: ${content}\n\n` +
+             `⚠️ Mã QR và nội dung này chỉ có hiệu lực trong vòng **10 PHÚT**.\n` +
+             `⏰ Quá thời gian trên, vui lòng tạo mã QR mới trước khi chuyển!\n` +
+             `⏳ Hệ thống sẽ tự cộng tiền sau vài giây khi bạn chuyển khoản thành công!`;
 
   bot.sendPhoto(chatId, qrUrl, {
     parse_mode: 'Markdown',
@@ -491,18 +490,6 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
         [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
       ]
     }
-  }).catch((err) => {
-    console.error('Lỗi sendPhoto QR:', err.message);
-    bot.sendMessage(chatId, caption, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🔄 Kiểm tra số dư', callback_data: 'check_balance' }],
-          [{ text: '💰 Tạo QR khác', callback_data: 'menu_nap' }],
-          [{ text: '🏠 Trang chủ', callback_data: 'back_main' }]
-        ]
-      }
-    });
   });
 }
 
@@ -574,7 +561,7 @@ bot.on('message', async (msg) => {
 
     await User.updateOne({ userId: userId }, { fullName: rawFullName });
 
-    const amount = tempDepositData.get(userId) || 10000;
+    const amount = tempDepositData.get(userId);
     userState.delete(userId);
     tempDepositData.delete(userId);
 
@@ -948,8 +935,6 @@ bot.on('callback_query', async (query) => {
   }
 
   if (action === 'back_main') {
-    userState.delete(userId);
-    tempDepositData.delete(userId);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     return sendMainMenu(chatId, userId);
   }
@@ -964,8 +949,6 @@ bot.on('callback_query', async (query) => {
   if (action.startsWith('dep_') && action !== 'dep_custom') {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
-
-    userState.delete(userId); // Xóa sạch kẹt trạng thái cũ
 
     if (user.fullName) {
       return createAndSendQR(chatId, userId, amount, user.fullName);
