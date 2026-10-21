@@ -487,7 +487,8 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
     ]
   };
 
-  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
+  const timestamp = Date.now();
+  const qrImageUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}&t=${timestamp}`;
 
   try {
     await bot.sendPhoto(chatId, qrImageUrl, {
