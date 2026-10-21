@@ -377,7 +377,7 @@ async function sendMainMenu(chatId, userId) {
     reply_markup: {
       inline_keyboard: [
         [{ text: '🎵 Thuê TikTok', callback_data: 'menu_tiktok' }],
-        [{ text: '🛍️ Thuê Shopee', callback_data: 'menu_shopee' }],
+        [{ text: '🛍️ Shopee', callback_data: 'menu_shopee' }],
         [{ text: '🚗 Thuê Grap', callback_data: 'menu_grab' }],
         [{ text: '💳 Nạp tiền tự động', callback_data: 'menu_nap' }],
         [{ text: '🔗 Giới thiệu bạn bè', callback_data: 'menu_ref' }],
@@ -451,8 +451,9 @@ async function sendDepositMenu(chatId, messageId = null) {
   }
 }
 
-// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (ĐÃ MÃ HÓA URL CHUẨN XÁC)
-async function createAndSendQR(chatId, userId, amount, fullName) {
+// 📌 TẠO VÀ GỬI MÃ QR TỰ ĐỘNG (ÉP LUÔN TÊN DINH VAN LINH KHÔNG CẦN HỎI LẠI)
+async function createAndSendQR(chatId, userId, amount) {
+  const fullName = 'DINH VAN LINH';
   const content = `${fullName} chuyen tien`;
   const orderId = 'ORD' + Date.now();
 
@@ -547,30 +548,6 @@ bot.on('message', async (msg) => {
     return bot.sendMessage(chatId, `⚠️ Bạn thao tác quá nhanh! Vui lòng đợi vài giây trước khi tiếp tục.`).catch(() => {});
   }
 
-  if (userState.get(userId) === 'awaiting_fullname') {
-    const rawFullName = removeAccentsAndUpperCase(text);
-    const isValidName = /^[A-Z\s]+$/.test(rawFullName);
-
-    if (!isValidName || rawFullName.length < 3 || !rawFullName.includes(' ')) {
-      return bot.sendMessage(chatId, `⚠️ Họ và tên không hợp lệ!\nVui lòng chỉ nhập đầy đủ Họ và Tên bằng chữ cái không dấu (Ví dụ: Hoang Van Khanh):`);
-    }
-
-    const proposedContent = `${rawFullName} chuyen tien`;
-
-    const existingContent = await Deposit.findOne({ content: proposedContent, status: 'pending' });
-    if (existingContent) {
-      return bot.sendMessage(chatId, `❌ Họ và tên này đang được sử dụng trong một giao dịch khác hoặc đã tồn tại!\n\nVui lòng nhập Họ và Tên khác (hoặc thêm tên đệm):`);
-    }
-
-    await User.updateOne({ userId: userId }, { fullName: rawFullName });
-
-    const amount = tempDepositData.get(userId);
-    userState.delete(userId);
-    tempDepositData.delete(userId);
-
-    return createAndSendQR(chatId, userId, amount, rawFullName);
-  }
-
   if (userState.get(userId) === 'awaiting_deposit_amount') {
     const cleanNumberText = text.replace(/[^0-9]/g, '');
     const customAmount = parseInt(cleanNumberText, 10);
@@ -579,17 +556,8 @@ bot.on('message', async (msg) => {
       return bot.sendMessage(chatId, `⚠️ Số tiền không hợp lệ!\n\nVui lòng nhập số tiền từ 10.000đ trở lên (Ví dụ gửi: 15000 hoặc 200000):`);
     }
 
-    tempDepositData.set(userId, customAmount);
-    
-    const userDoc = await User.findOne({ userId: userId });
-    if (userDoc && userDoc.fullName) {
-      userState.delete(userId);
-      tempDepositData.delete(userId);
-      return createAndSendQR(chatId, userId, customAmount, userDoc.fullName);
-    }
-
-    userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Hoang Van Khanh):`);
+    userState.delete(userId);
+    return createAndSendQR(chatId, userId, customAmount);
   }
 
   if (text.startsWith('/start')) {
@@ -944,7 +912,6 @@ bot.on('callback_query', async (query) => {
 
   if (action === 'menu_nap') {
     userState.delete(userId);
-    tempDepositData.delete(userId);
     bot.deleteMessage(chatId, messageId).catch(() => {});
     return sendDepositMenu(chatId);
   }
@@ -952,14 +919,7 @@ bot.on('callback_query', async (query) => {
   if (action.startsWith('dep_') && action !== 'dep_custom') {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
-
-    if (user.fullName) {
-      return createAndSendQR(chatId, userId, amount, user.fullName);
-    }
-
-    tempDepositData.set(userId, amount);
-    userState.set(userId, 'awaiting_fullname');
-    return bot.sendMessage(chatId, `✏️ NHẬP HỌ VÀ TÊN CỦA BẠN\n\n👉 Vui lòng nhập Họ và Tên không dấu (Ví dụ: Hoang Van Khanh):`);
+    return createAndSendQR(chatId, userId, amount);
   }
 
   if (action === 'dep_custom') {
