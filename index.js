@@ -461,8 +461,8 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
   
-  // Link tạo mã QR VietQR chuẩn sạch bóng logo SePay
-  const qrUrl = `https://img.vietqr.io/image/MB-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(accountName)}`;
+  // Link VietQR chính thức đuôi .png cực nhanh, không lo lỗi ảnh hay hiện logo SePay
+  const qrUrl = `https://api.vietqr.io/MB/${accountNo}/${amount}/${encodeURIComponent(content)}/compact2.png?accountName=${encodeURIComponent(accountName)}`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
                 `🏛️ Ngân hàng: MB Bank (MB)\n` +
