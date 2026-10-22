@@ -261,29 +261,36 @@ let npaServiceIds = {
   grab: 'dyn_227006400d'
 };
 
-// Cập nhật hàm thông minh để quét đúng các nhãn từ NPA (như Sóp bi new, Shopee, v.v.)
+// Hàm cập nhật ID dịch vụ thông minh - phân loại chính xác cổng dịch vụ từ NPA
 async function updateNpaServiceIds() {
   try {
     const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
     if (res.data && res.data.services && Array.isArray(res.data.services)) {
       res.data.services.forEach(srv => {
         const label = (srv.label || '').toLowerCase();
-        if (label.includes('sóp bi') || label.includes('shopee')) {
-          if (label.includes('call') || label.includes('cấm lộc')) {
-            npaServiceIds.shopee_call = srv.id;
-          } else if (label.includes('mượt') || label.includes('bo') || label.includes('bò')) {
-            npaServiceIds.shopee_bo = srv.id;
-          } else if (label.includes('trâu') || label.includes('đá số')) {
-            npaServiceIds.shopee_trau = srv.id;
-          } else {
-            // Shopee thông thường / Sóp bi new
-            npaServiceIds.shopee_tl = srv.id;
-          }
-        } else if (label.includes('grab') || label.includes('grap')) {
+        
+        // 1. Phân loại Cổng Shopee Call / Đá
+        if (label.includes('call') || label.includes('cấm lộc') || label.includes('shopee đá')) {
+          npaServiceIds.shopee_call = srv.id;
+        } 
+        // 2. Phân loại Cổng Shopee bò / Mượt
+        else if (label.includes('shopee bò') || label.includes('shopee bo') || label.includes('mượt')) {
+          npaServiceIds.shopee_bo = srv.id;
+        } 
+        // 3. Phân loại Cổng Shopee trâu
+        else if (label.includes('shopee trâu') || label.includes('shopee trau')) {
+          npaServiceIds.shopee_trau = srv.id;
+        } 
+        // 4. Phân loại Cổng Shopee chính / Sóp bi new
+        else if (label.includes('sóp bi new') || label.includes('shopee new') || label.includes('sóp bi') || label.includes('shopee')) {
+          npaServiceIds.shopee_tl = srv.id;
+        } 
+        // 5. Phân loại Grab
+        else if (label.includes('grab') || label.includes('grap')) {
           npaServiceIds.grab = srv.id;
         }
       });
-      console.log('✅ Đã cập nhật xong danh sách ID dịch vụ NPA:', npaServiceIds);
+      console.log('✅ Đã cập nhật chính xác danh sách ID dịch vụ NPA:', npaServiceIds);
     }
   } catch (err) {
     console.error('❌ Lỗi cập nhật NPA service IDs:', err.message);
