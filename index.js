@@ -330,7 +330,7 @@ setupBotCommands();
 
 function getServiceInfo(action) {
   const map = {
-    'rent_npa_shopee_tl': { name: 'Shopee HN', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
+    'rent_npa_shopee_tl': { name: 'Shopee VIP', price: 5000, service_id: npaServiceIds.shopee_tl, provider: 'npa' },
     'rent_npa_shopee_call': { name: 'Shopee Call', price: 3000, service_id: npaServiceIds.shopee_call, provider: 'npa' },
     'rent_npa_shopee_bo': { name: 'Shopee Mượt', price: 4000, service_id: npaServiceIds.shopee_bo, provider: 'npa' },
     'rent_npa_shopee_trau': { name: 'Shopee Ít đá số', price: 4000, service_id: npaServiceIds.shopee_trau, provider: 'npa' },
@@ -1017,7 +1017,7 @@ bot.on('callback_query', async (query) => {
       chat_id: chatId, message_id: messageId,
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🛍️ Shopee - 5.000đ', callback_data: 'rent_npa_shopee_tl' }],
+          [{ text: '🛍️ Shopee VIP - 5.000đ', callback_data: 'rent_npa_shopee_tl' }],
           [{ text: '🛍️ Shopee Call - 3.000đ', callback_data: 'rent_npa_shopee_call' }],
           [{ text: '🛍️ Shopee Mượt - 4.000đ', callback_data: 'rent_npa_shopee_bo' }],
           [{ text: '🛍️ Shopee Ít đá số - 4.000đ', callback_data: 'rent_npa_shopee_trau' }],
