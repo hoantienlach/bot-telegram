@@ -89,7 +89,7 @@ app.post('/webhook/sepay', async (req, res) => {
                     `💵 Số tiền chuyển: ${transferAmount.toLocaleString()}đ\n`;
       
       if (bonusAmount > 0) {
-        msgText += `🎁 Khuyến mãi (${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` +
+        msgText += `🎁 Khuyến mãi (${depositBonusPercent}\%): +${bonusAmount.toLocaleString()}đ\n` +
                    `💰 Tổng nhận vào ví: +${finalReceiveAmount.toLocaleString()}đ\n`;
       } else {
         msgText += `💰 Số tiền nhận: +${transferAmount.toLocaleString()}đ\n`;
@@ -113,7 +113,7 @@ app.post('/webhook/sepay', async (req, res) => {
               user.referredBy,
               `🎁 NHẬN HOA HỒNG GIỚI THIỆU!\n\n` +
               `👤 Bạn bè (ID: ${pendingDeposit.userId}) vừa nạp thành công ${transferAmount.toLocaleString()}đ.\n` +
-              `💰 Hoa hồng nhận được (${referralCommissionPercent}%): +${commission.toLocaleString()}đ\n` +
+              `💰 Hoa hồng nhận được (${referralCommissionPercent}\%): +${commission.toLocaleString()}đ\n` +
               `💳 Số dư ví hiện tại: ${referrer.balance.toLocaleString()}đ`
             ).catch(() => {});
           }
@@ -261,26 +261,33 @@ let npaServiceIds = {
   grab: 'dyn_227006400d'
 };
 
+// Cập nhật hàm thông minh để quét đúng các nhãn từ NPA (như Sóp bi new, Shopee, v.v.)
 async function updateNpaServiceIds() {
   try {
     const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
     if (res.data && res.data.services && Array.isArray(res.data.services)) {
       res.data.services.forEach(srv => {
         const label = (srv.label || '').toLowerCase();
-        if (label.includes('sóp bi tl') || label.includes('shopee tl')) {
-          npaServiceIds.shopee_tl = srv.id;
-        } else if (label.includes('shopee call') || label.includes('cấm lộc')) {
-          npaServiceIds.shopee_call = srv.id;
-        } else if (label.includes('shopee bò') || label.includes('shopee bo') || label.includes('mượt')) {
-          npaServiceIds.shopee_bo = srv.id;
-        } else if (label.includes('shopee trâu') || label.includes('shopee trau') || label.includes('đá số')) {
-          npaServiceIds.shopee_trau = srv.id;
+        if (label.includes('sóp bi') || label.includes('shopee')) {
+          if (label.includes('call') || label.includes('cấm lộc')) {
+            npaServiceIds.shopee_call = srv.id;
+          } else if (label.includes('mượt') || label.includes('bo') || label.includes('bò')) {
+            npaServiceIds.shopee_bo = srv.id;
+          } else if (label.includes('trâu') || label.includes('đá số')) {
+            npaServiceIds.shopee_trau = srv.id;
+          } else {
+            // Shopee thông thường / Sóp bi new
+            npaServiceIds.shopee_tl = srv.id;
+          }
         } else if (label.includes('grab') || label.includes('grap')) {
           npaServiceIds.grab = srv.id;
         }
       });
+      console.log('✅ Đã cập nhật xong danh sách ID dịch vụ NPA:', npaServiceIds);
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error('❌ Lỗi cập nhật NPA service IDs:', err.message);
+  }
 }
 updateNpaServiceIds();
 
@@ -303,6 +310,7 @@ async function setupBotCommands() {
       { command: 'baotri', description: 'Admin: Bật/Tắt chế độ bảo trì' },
       { command: 'baotri_cho', description: 'Admin: Thêm ID user được dùng khi bảo trì' },
       { command: 'baotri_xoa', description: 'Admin: Xóa ID user khỏi danh sách bảo trì' },
+      { command: 'updatenpa', description: 'Admin: Quét & cập nhật lại ID dịch vụ NPA' },
       { command: 'sendall', description: 'Admin: Gửi thông báo toàn bộ user' }
     ], {
       scope: { type: 'chat', chat_id: ADMIN_ID }
@@ -461,7 +469,6 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   const accountNo = '0382936287'; 
   const accountName = 'DINH VAN LINH';
   
-  // Dùng domain vietqr.app hoạt động cực kỳ nhanh và ổn định trên Telegram
   const qrUrl = `https://vietqr.app/img?bank=${bankId}&acc=${accountNo}&amount=${amount}&memo=${encodeURIComponent(content)}&holder=${encodeURIComponent(accountName)}&template=compact&showinfo=true`;
 
   let caption = `💰 THÔNG TIN CHUYỂN KHOẢN (MB BANK)\n\n` +
@@ -474,7 +481,7 @@ async function createAndSendQR(chatId, userId, amount, fullName) {
   if (depositBonusPercent > 0) {
     const bonusVal = Math.floor((amount * depositBonusPercent) / 100);
     const totalVal = amount + bonusVal;
-    caption += `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusVal.toLocaleString()}đ\n` +
+    caption += `🎁 Khuyến mãi (+${depositBonusPercent}\%): +${bonusVal.toLocaleString()}đ\n` +
                `💰 Nhận thực tế vào ví: *${totalVal.toLocaleString()}đ*\n\n`;
   }
 
@@ -618,6 +625,12 @@ bot.on('message', async (msg) => {
       }
     }
     return sendMainMenu(chatId, userId);
+  }
+
+  if (text.startsWith('/updatenpa')) {
+    if (userId !== ADMIN_ID) return bot.sendMessage(chatId, `❌ Bạn không có quyền sử dụng lệnh này!`);
+    await updateNpaServiceIds();
+    return bot.sendMessage(chatId, `✅ Đã quét và cập nhật lại danh sách ID dịch vụ NPA mới nhất!\n\n\`\`\`json\n${JSON.stringify(npaServiceIds, null, 2)}\`\`\``, { parse_mode: 'Markdown' });
   }
 
   if (text.startsWith('/hoahong')) {
@@ -965,7 +978,7 @@ bot.on('callback_query', async (query) => {
     const amount = parseInt(action.replace('dep_', ''), 10);
     bot.deleteMessage(chatId, messageId).catch(() => {});
 
-    userState.delete(userId); // Xóa sạch kẹt trạng thái cũ
+    userState.delete(userId);
 
     if (user.fullName) {
       return createAndSendQR(chatId, userId, amount, user.fullName);
