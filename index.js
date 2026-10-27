@@ -97,7 +97,19 @@ app.post('/webhook/sepay', async (req, res) => {
 
       msgText += `💳 Số dư ví hiện tại: ${user.balance.toLocaleString()}đ`;
 
+      // Gửi thông báo cho khách hàng[cite: 1]
       bot.sendMessage(pendingDeposit.userId, msgText).catch(() => {});
+
+      // 🔔 Thêm thông báo chi tiết cho Admin khi khách nạp thành công qua QR[cite: 1]
+      const adminMsg = `🚨 THÔNG BÁO NẠP TIỀN THÀNH CÔNG (QR)\n\n` +
+                       `👤 Khách hàng: ${user.fullName || 'Chưa cập nhật'} (ID: ${pendingDeposit.userId})\n` +
+                       `💵 Số tiền nạp: ${transferAmount.toLocaleString()}đ\n` +
+                       (bonusAmount > 0 ? `🎁 Khuyến mãi (+${depositBonusPercent}%): +${bonusAmount.toLocaleString()}đ\n` : '') +
+                       `💰 Tổng thực nhận: ${finalReceiveAmount.toLocaleString()}đ\n` +
+                       `💳 Số dư mới của khách: ${user.balance.toLocaleString()}đ\n` +
+                       `📝 Nội dung CK: ${data.content || data.description || 'N/A'}`;
+
+      bot.sendMessage(ADMIN_ID, adminMsg).catch(() => {});
 
       if (referralCommissionPercent > 0 && user.referredBy) {
         const commission = Math.floor((transferAmount * referralCommissionPercent) / 100);
@@ -261,7 +273,6 @@ let npaServiceIds = {
   grab: 'dyn_227006400d'
 };
 
-// Hàm cập nhật ID dịch vụ thông minh - phân loại chính xác cổng dịch vụ từ NPA
 async function updateNpaServiceIds() {
   try {
     const res = await axios.get('https://otpapi.cmsnpa.com/api/v1/services');
@@ -269,23 +280,18 @@ async function updateNpaServiceIds() {
       res.data.services.forEach(srv => {
         const label = (srv.label || '').toLowerCase();
         
-        // 1. Phân loại Cổng Shopee Call / Đá
         if (label.includes('call') || label.includes('cấm lộc') || label.includes('shopee đá')) {
           npaServiceIds.shopee_call = srv.id;
         } 
-        // 2. Phân loại Cổng Shopee bò / Mượt
         else if (label.includes('shopee bò') || label.includes('shopee bo') || label.includes('mượt')) {
           npaServiceIds.shopee_bo = srv.id;
         } 
-        // 3. Phân loại Cổng Shopee trâu
         else if (label.includes('shopee trâu') || label.includes('shopee trau')) {
           npaServiceIds.shopee_trau = srv.id;
         } 
-        // 4. Phân loại Cổng Shopee chính / Sóp bi new
         else if (label.includes('sóp bi new') || label.includes('shopee new') || label.includes('sóp bi') || label.includes('shopee')) {
           npaServiceIds.shopee_tl = srv.id;
         } 
-        // 5. Phân loại Grab
         else if (label.includes('grab') || label.includes('grap')) {
           npaServiceIds.grab = srv.id;
         }
