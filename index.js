@@ -100,7 +100,7 @@ app.post('/webhook/sepay', async (req, res) => {
       // Gửi thông báo cho khách hàng[cite: 1]
       bot.sendMessage(pendingDeposit.userId, msgText).catch(() => {});
 
-      // 🔔 Thêm thông báo chi tiết cho Admin khi khách nạp thành công qua QR[cite: 1]
+      // 🔔 Gửi thông báo chi tiết cho Admin khi khách nạp thành công qua QR[cite: 1]
       const adminMsg = `🚨 THÔNG BÁO NẠP TIỀN THÀNH CÔNG (QR)\n\n` +
                        `👤 Khách hàng: ${user.fullName || 'Chưa cập nhật'} (ID: ${pendingDeposit.userId})\n` +
                        `💵 Số tiền nạp: ${transferAmount.toLocaleString()}đ\n` +
@@ -314,7 +314,7 @@ async function setupBotCommands() {
 
     await bot.setMyCommands([
       { command: 'start', description: 'Mở menu thuê số & ví' },
-      { command: 'nap', description: 'Admin: Nạp tiền qua tên' },
+      { command: 'nap', description: 'Admin: Nạp tiền qua tên hoặc ID' },
       { command: 'tru', description: 'Admin: Trừ tiền qua tên' },
       { command: 'hoan', description: 'Admin: Hoàn tiền qua mã đơn' },
       { command: 'setnap', description: 'Admin: Điều chỉnh tổng nạp qua tên' },
@@ -766,33 +766,53 @@ bot.on('message', async (msg) => {
     const parts = text.replace('/nap', '').trim().split(' ');
     
     if (parts.length < 2) {
-      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /nap <Họ Tên> <Số tiền>\n*Ví dụ:* /nap NGUYEN VAN A 50000`);
+      return bot.sendMessage(chatId, `⚠️ Cú pháp không hợp lệ!\n*Dùng:* /nap <Họ Tên hoặc User ID> <Số tiền>\n*Ví dụ 1:* /nap NGO THI KIM NGAN 10000\n*Ví dụ 2:* /nap 5426720868 10000`);
     }
 
     const amountStr = parts[parts.length - 1].replace(/[^0-9]/g, '');
     const amount = parseInt(amountStr, 10);
-    const nameQuery = parts.slice(0, parts.length - 1).join(' ');
-    const cleanSearchName = removeAccentsAndUpperCase(nameQuery);
+    const queryStr = parts.slice(0, parts.length - 1).join(' ').trim();
+    const cleanSearchName = removeAccentsAndUpperCase(queryStr);
 
-    if (isNaN(amount) || amount <= 0 || !cleanSearchName) {
-      return bot.sendMessage(chatId, `⚠️ Số tiền hoặc tên không hợp lệ!`);
+    if (isNaN(amount) || amount <= 0 || !queryStr) {
+      return bot.sendMessage(chatId, `⚠️ Số tiền hoặc thông tin tìm kiếm không hợp lệ!`);
     }
 
-    const targetUser = await User.findOne({ 
-      fullName: { $regex: new RegExp(cleanSearchName, 'i') } 
-    });
+    let targetUser = null;
+
+    // 1. Kiểm tra xem người dùng nhập vào có phải là User ID hay không (toàn số)
+    if (/^\d+$/.test(queryStr)) {
+      targetUser = await User.findOne({ userId: queryStr });
+    }
+
+    // 2. Nếu không tìm thấy theo ID, tiến hành tìm theo Họ Tên (fullName)
+    if (!targetUser) {
+      targetUser = await User.findOne({ 
+        fullName: { $regex: new RegExp(cleanSearchName, 'i') } 
+      });
+    }
+
+    // 3. Nếu vẫn không thấy, tìm lướt qua bảng Deposit xem khách có yêu cầu nạp tiền nào khớp tên không
+    if (!targetUser) {
+      const foundDeposit = await Deposit.findOne({
+        content: { $regex: new RegExp(cleanSearchName, 'i') }
+      });
+      if (foundDeposit) {
+        targetUser = await User.findOne({ userId: foundDeposit.userId });
+      }
+    }
 
     if (!targetUser) {
-      return bot.sendMessage(chatId, `❌ Không tìm thấy user nào có tên chứa: "${nameQuery}"`);
+      return bot.sendMessage(chatId, `❌ Không tìm thấy user nào khớp với: "${queryStr}"\n\n💡 *Gợi ý:* Hãy kiểm tra lại User ID hoặc dùng lệnh /nap kèm User ID trực tiếp để chính xác 100%.`);
     }
 
     const updatedUser = await User.findOneAndUpdate(
       { userId: targetUser.userId },
       { $inc: { balance: amount, total_deposited: amount } },
-      { new: true }
+      { new: true, upsert: true }
     );
 
-    bot.sendMessage(chatId, `✅ Đã nạp thành công +${amount.toLocaleString()}đ cho user: **${targetUser.fullName}** (ID: ${targetUser.userId})\n💰 Số dư mới: ${updatedUser.balance.toLocaleString()}đ`);
+    bot.sendMessage(chatId, `✅ Đã nạp thành công +${amount.toLocaleString()}đ cho user: **${updatedUser.fullName || 'Khách hàng'}** (ID: ${updatedUser.userId})\n💰 Số dư mới: ${updatedUser.balance.toLocaleString()}đ`);
     bot.sendMessage(targetUser.userId, `🎉 Tài khoản được cộng: +${amount.toLocaleString()}đ\n💰 Số dư ví hiện tại: ${updatedUser.balance.toLocaleString()}đ`).catch(() => {});
     return;
   }
@@ -1230,7 +1250,7 @@ bot.on('callback_query', async (query) => {
         isCompleted = true;
         clearInterval(checkInterval);
 
-        if (provider === 'gmailotp' && reqId !== 'N/A') {
+        if (provider === 'gmailotp' && reqId !== 'N/App') {
           axios.get(`https://gmailotp.site/api?action=cancel_phone&key=${API_KEY_GMAILOTP}&id=${reqId}`).catch(() => {});
         }
 
